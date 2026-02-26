@@ -3,6 +3,30 @@
   "generated": "2026-02-26T22:06:02.131Z",
   "skills": [
     {
+      "name": "aibtc-news",
+      "description": "aibtc.news decentralized intelligence platform — list and claim editorial beats, file authenticated signals (news items) with BIP-322 signatures, browse signals, check correspondent leaderboard rankings, and trigger daily brief compilation.",
+      "entry": "aibtc-news/aibtc-news.ts",
+      "arguments": [
+        "list-beats",
+        "status",
+        "file-signal",
+        "list-signals",
+        "correspondents",
+        "claim-beat",
+        "compile-brief"
+      ],
+      "requires": [
+        "wallet",
+        "signing"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "infrastructure"
+      ],
+      "userInvocable": false
+    },
+    {
       "name": "bitflow",
       "description": "Bitflow DEX on Stacks — token swaps with aggregated liquidity, market ticker data, swap routing, price impact analysis, and Keeper automation for scheduled orders. All operations are mainnet-only. No API key required (500 req/min public rate limit). Write operations require an unlocked wallet.",
       "entry": "bitflow/bitflow.ts",
