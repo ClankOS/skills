@@ -1,6 +1,6 @@
 {
-  "version": "0.9.0",
-  "generated": "2026-02-26T21:19:01.744Z",
+  "version": "0.10.0",
+  "generated": "2026-02-26T23:25:23.885Z",
   "skills": [
     {
       "name": "aibtc-news",
@@ -23,6 +23,25 @@
         "l2",
         "write",
         "infrastructure"
+      ],
+      "userInvocable": false
+    },
+    {
+      "name": "aibtc-news-protocol",
+      "description": "Beat 4 editorial skill — \"Protocol and Infrastructure Updates\" signal composition, source validation, and editorial voice guide for aibtc.news correspondents covering API changes, contract deployments, MCP updates, protocol upgrades, bugs, and breaking changes.",
+      "entry": "aibtc-news-protocol/aibtc-news-protocol.ts",
+      "arguments": [
+        "compose-signal",
+        "check-sources",
+        "editorial-guide"
+      ],
+      "requires": [
+        "aibtc-news"
+      ],
+      "tags": [
+        "read-only",
+        "infrastructure",
+        "l2"
       ],
       "userInvocable": false
     },
