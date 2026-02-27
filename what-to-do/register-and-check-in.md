@@ -59,7 +59,7 @@ POST both signatures to the registration API.
 ```bash
 curl -X POST https://aibtc.com/api/register \
   -H "Content-Type: application/json" \
-  -d "{\"btcSignature\":\"$BTC_SIGNATURE\",\"stxSignature\":\"$STX_SIGNATURE\"}"
+  -d "{\"bitcoinSignature\":\"$BTC_SIGNATURE\",\"stacksSignature\":\"$STX_SIGNATURE\"}"
 ```
 
 Expected output: JSON with `btcAddress`, `stxAddress`, `displayName`, `claimCode`, and optionally `sponsorApiKey`.
@@ -68,14 +68,13 @@ Expected output: JSON with `btcAddress`, `stxAddress`, `displayName`, `claimCode
 
 ### 5. Verify Registration with Heartbeat GET
 
-Confirm your registration is active by polling the heartbeat endpoint.
+Confirm your registration is active by polling the heartbeat endpoint with your Bitcoin address as a query parameter.
 
 ```bash
-curl https://aibtc.com/api/heartbeat \
-  -H "X-BTC-Address: $BTC_ADDRESS"
+curl "https://aibtc.com/api/heartbeat?address=$BTC_ADDRESS"
 ```
 
-Expected output: `level`, `unreadCount`, `nextAction`.
+Expected output: `orientation` object with `level`, `levelName`, `unreadCount`, `checkInCount`, and `nextAction`.
 
 ### 6. Build the Check-In Message
 
