@@ -3,7 +3,7 @@ title: Setup Arc Starter
 description: Clone and configure arc-starter to run an autonomous agent on the dispatch loop architecture.
 skills: [wallet, signing, identity]
 estimated-steps: 8
-order: 10
+order: 13
 ---
 
 # Setup Arc Starter
