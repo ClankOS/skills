@@ -1,7 +1,50 @@
 {
-  "version": "0.9.0",
-  "generated": "2026-02-26T21:19:01.744Z",
+  "version": "0.10.0",
+  "generated": "2026-02-26T23:21:33.572Z",
   "skills": [
+    {
+      "name": "aibtc-news",
+      "description": "aibtc.news decentralized intelligence platform — list and claim editorial beats, file authenticated signals (news items) with BIP-322 signatures, browse signals, check correspondent leaderboard rankings, and trigger daily brief compilation.",
+      "entry": "aibtc-news/aibtc-news.ts",
+      "arguments": [
+        "list-beats",
+        "status",
+        "file-signal",
+        "list-signals",
+        "correspondents",
+        "claim-beat",
+        "compile-brief"
+      ],
+      "requires": [
+        "wallet",
+        "signing"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "infrastructure"
+      ],
+      "userInvocable": false
+    },
+    {
+      "name": "aibtc-news-protocol",
+      "description": "Beat 4 editorial skill — \"Protocol and Infrastructure Updates\" signal composition, source validation, and editorial voice guide for aibtc.news correspondents covering API changes, contract deployments, MCP updates, protocol upgrades, bugs, and breaking changes.",
+      "entry": "aibtc-news-protocol/aibtc-news-protocol.ts",
+      "arguments": [
+        "compose-signal",
+        "check-sources",
+        "editorial-guide"
+      ],
+      "requires": [
+        "aibtc-news"
+      ],
+      "tags": [
+        "read-only",
+        "infrastructure",
+        "l2"
+      ],
+      "userInvocable": false
+    },
     {
       "name": "bitflow",
       "description": "Bitflow DEX on Stacks — token swaps with aggregated liquidity, market ticker data, swap routing, price impact analysis, and Keeper automation for scheduled orders. All operations are mainnet-only. No API key required (500 req/min public rate limit). Write operations require an unlocked wallet.",
@@ -128,16 +171,19 @@
     },
     {
       "name": "identity",
-      "description": "ERC-8004 on-chain agent identity and reputation management — register agent identities, query identity info, submit and retrieve reputation feedback, and manage third-party validation requests.",
+      "description": "ERC-8004 on-chain agent identity management — register agent identities, update URI and metadata, manage operator approvals, set/unset agent wallet, transfer identity NFTs, and query identity info.",
       "entry": "identity/identity.ts",
       "arguments": [
         "register",
         "get",
-        "give-feedback",
-        "get-reputation",
-        "request-validation",
-        "get-validation-status",
-        "get-validation-summary"
+        "set-uri",
+        "set-metadata",
+        "set-approval",
+        "set-wallet",
+        "unset-wallet",
+        "transfer",
+        "get-metadata",
+        "get-last-id"
       ],
       "requires": [
         "wallet"
@@ -268,6 +314,32 @@
       "tags": [
         "l2",
         "read-only"
+      ],
+      "userInvocable": false
+    },
+    {
+      "name": "reputation",
+      "description": "ERC-8004 on-chain agent reputation management — submit and revoke feedback, append responses, approve clients, and query reputation summaries, feedback entries, and client lists.",
+      "entry": "reputation/reputation.ts",
+      "arguments": [
+        "give-feedback",
+        "revoke-feedback",
+        "append-response",
+        "approve-client",
+        "get-summary",
+        "read-feedback",
+        "read-all-feedback",
+        "get-clients",
+        "get-feedback-count",
+        "get-approved-limit",
+        "get-last-index"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write"
       ],
       "userInvocable": false
     },
@@ -441,6 +513,27 @@
         "get-info",
         "list-user-tokens",
         "get-holders"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write"
+      ],
+      "userInvocable": false
+    },
+    {
+      "name": "validation",
+      "description": "ERC-8004 on-chain agent validation management — request and respond to validations, and query validation status, summaries, and paginated lists by agent or validator.",
+      "entry": "validation/validation.ts",
+      "arguments": [
+        "request",
+        "respond",
+        "get-status",
+        "get-summary",
+        "get-agent-validations",
+        "get-validator-requests"
       ],
       "requires": [
         "wallet"

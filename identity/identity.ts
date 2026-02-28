@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Identity skill CLI
- * ERC-8004 on-chain agent identity, reputation, and validation management
+ * ERC-8004 on-chain agent identity management
  *
  * Usage: bun run identity/identity.ts <subcommand> [options]
  */
@@ -66,8 +66,8 @@ const program = new Command();
 program
   .name("identity")
   .description(
-    "ERC-8004 on-chain agent identity and reputation: register identities, query info, " +
-      "submit feedback, and manage third-party validation requests"
+    "ERC-8004 on-chain agent identity: register identities, update URI and metadata, " +
+      "manage operator approvals, set/unset wallet, transfer identity NFTs, and query identity info"
   )
   .version("0.1.0");
 
@@ -226,51 +226,36 @@ program
   });
 
 // ---------------------------------------------------------------------------
-// give-feedback
+// set-uri
 // ---------------------------------------------------------------------------
 
 program
-  .command("give-feedback")
+  .command("set-uri")
   .description(
-    "Submit feedback for an agent using the ERC-8004 reputation registry. " +
-      "Value is normalized to 18 decimals (WAD) internally for aggregation. " +
-      "Requires an unlocked wallet."
+    "Update the URI for an agent identity in the ERC-8004 identity registry. " +
+      "Caller must be the agent owner or an approved operator. Requires an unlocked wallet."
   )
   .requiredOption(
     "--agent-id <id>",
-    "Agent ID to give feedback for (non-negative integer)"
+    "Agent ID to update (non-negative integer)"
   )
   .requiredOption(
-    "--value <n>",
-    "Feedback value (e.g., 5 for 5-star rating)"
-  )
-  .requiredOption(
-    "--decimals <n>",
-    "Decimals for the value (e.g., 0 for integer ratings, 0-18)"
-  )
-  .option("--tag1 <tag>", "Optional tag 1 (max 64 chars)")
-  .option("--tag2 <tag>", "Optional tag 2 (max 64 chars)")
-  .option("--endpoint <url>", "Optional endpoint URL")
-  .option("--feedback-uri <uri>", "Optional feedback URI")
-  .option(
-    "--feedback-hash <hex>",
-    "Optional feedback hash as hex string (32 bytes / 64 hex chars)"
+    "--uri <uri>",
+    "New URI pointing to agent metadata (IPFS, HTTP, etc.)"
   )
   .option(
     "--fee <fee>",
     'Fee preset ("low", "medium", "high") or micro-STX amount'
   )
-  .option("--sponsored", "Submit as a sponsored transaction", false)
+  .option(
+    "--sponsored",
+    "Submit as a sponsored transaction",
+    false
+  )
   .action(
     async (opts: {
       agentId: string;
-      value: string;
-      decimals: string;
-      tag1?: string;
-      tag2?: string;
-      endpoint?: string;
-      feedbackUri?: string;
-      feedbackHash?: string;
+      uri: string;
       fee?: string;
       sponsored: boolean;
     }) => {
@@ -286,36 +271,15 @@ program
           throw new Error("--agent-id must be a non-negative integer");
         }
 
-        const value = parseInt(opts.value, 10);
-        if (isNaN(value) || value < 0) {
-          throw new Error("--value must be a non-negative integer");
-        }
-
-        const decimals = parseInt(opts.decimals, 10);
-        if (isNaN(decimals) || decimals < 0 || decimals > 18) {
-          throw new Error("--decimals must be an integer between 0 and 18");
-        }
-
         const service = new Erc8004Service(NETWORK);
-
-        const hashBuffer = opts.feedbackHash
-          ? Buffer.from(normalizeHex(opts.feedbackHash, "feedbackHash", 32), "hex")
-          : undefined;
-
         const feeAmount = opts.fee
           ? await resolveFee(opts.fee, NETWORK, "contract_call")
           : undefined;
 
-        const result = await service.giveFeedback(
+        const result = await service.updateIdentityUri(
           account,
           agentId,
-          value,
-          decimals,
-          opts.tag1,
-          opts.tag2,
-          opts.endpoint,
-          opts.feedbackUri,
-          hashBuffer,
+          opts.uri,
           feeAmount,
           opts.sponsored
         );
@@ -323,10 +287,9 @@ program
         printJson({
           success: true,
           txid: result.txid,
-          message: "Feedback submitted successfully",
+          message: "Identity URI update transaction submitted.",
           agentId,
-          value,
-          decimals,
+          uri: opts.uri,
           network: NETWORK,
           explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
         });
@@ -337,20 +300,411 @@ program
   );
 
 // ---------------------------------------------------------------------------
-// get-reputation
+// set-metadata
 // ---------------------------------------------------------------------------
 
 program
-  .command("get-reputation")
+  .command("set-metadata")
   .description(
-    "Get aggregated reputation summary for an agent from the ERC-8004 reputation registry. " +
-      "Returns average rating as a raw WAD string (18 decimals) and total feedback count."
+    "Set a metadata key-value pair for an agent identity in the ERC-8004 identity registry. " +
+      "Value must be a hex-encoded buffer (max 512 bytes). " +
+      'The key "agentWallet" is reserved and will be rejected by the contract. ' +
+      "Caller must be the agent owner or an approved operator. Requires an unlocked wallet."
   )
   .requiredOption(
     "--agent-id <id>",
-    "Agent ID to get reputation for (non-negative integer)"
+    "Agent ID to update (non-negative integer)"
   )
-  .action(async (opts: { agentId: string }) => {
+  .requiredOption(
+    "--key <key>",
+    "Metadata key (string)"
+  )
+  .requiredOption(
+    "--value <hex>",
+    "Metadata value as a hex-encoded buffer (e.g., 616c696365 for 'alice')"
+  )
+  .option(
+    "--fee <fee>",
+    'Fee preset ("low", "medium", "high") or micro-STX amount'
+  )
+  .option(
+    "--sponsored",
+    "Submit as a sponsored transaction",
+    false
+  )
+  .action(
+    async (opts: {
+      agentId: string;
+      key: string;
+      value: string;
+      fee?: string;
+      sponsored: boolean;
+    }) => {
+      try {
+        const walletManager = getWalletManager();
+        const account = walletManager.getActiveAccount();
+        if (!account) {
+          throw new Error("No active wallet. Please unlock your wallet first.");
+        }
+
+        const agentId = parseInt(opts.agentId, 10);
+        if (isNaN(agentId) || agentId < 0) {
+          throw new Error("--agent-id must be a non-negative integer");
+        }
+
+        const normalized = normalizeHex(opts.value, "--value");
+        const buf = Buffer.from(normalized, "hex");
+        if (buf.length > 512) {
+          throw new Error(`--value exceeds 512 bytes (got ${buf.length})`);
+        }
+
+        const service = new Erc8004Service(NETWORK);
+        const feeAmount = opts.fee
+          ? await resolveFee(opts.fee, NETWORK, "contract_call")
+          : undefined;
+
+        const result = await service.setMetadata(
+          account,
+          agentId,
+          opts.key,
+          buf,
+          feeAmount,
+          opts.sponsored
+        );
+
+        printJson({
+          success: true,
+          txid: result.txid,
+          message: "Metadata set transaction submitted.",
+          agentId,
+          key: opts.key,
+          valueHex: normalized,
+          network: NETWORK,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// set-approval
+// ---------------------------------------------------------------------------
+
+program
+  .command("set-approval")
+  .description(
+    "Approve or revoke an operator for an agent identity in the ERC-8004 identity registry. " +
+      "Approved operators can update URI, metadata, and wallet on behalf of the owner. " +
+      "Only the NFT owner can call this. Requires an unlocked wallet."
+  )
+  .requiredOption(
+    "--agent-id <id>",
+    "Agent ID to update (non-negative integer)"
+  )
+  .requiredOption(
+    "--operator <address>",
+    "Stacks address of the operator to approve or revoke"
+  )
+  .option(
+    "--approved",
+    "Grant approval (omit to revoke)",
+    false
+  )
+  .option(
+    "--fee <fee>",
+    'Fee preset ("low", "medium", "high") or micro-STX amount'
+  )
+  .option(
+    "--sponsored",
+    "Submit as a sponsored transaction",
+    false
+  )
+  .action(
+    async (opts: {
+      agentId: string;
+      operator: string;
+      approved: boolean;
+      fee?: string;
+      sponsored: boolean;
+    }) => {
+      try {
+        const walletManager = getWalletManager();
+        const account = walletManager.getActiveAccount();
+        if (!account) {
+          throw new Error("No active wallet. Please unlock your wallet first.");
+        }
+
+        const agentId = parseInt(opts.agentId, 10);
+        if (isNaN(agentId) || agentId < 0) {
+          throw new Error("--agent-id must be a non-negative integer");
+        }
+
+        const service = new Erc8004Service(NETWORK);
+        const feeAmount = opts.fee
+          ? await resolveFee(opts.fee, NETWORK, "contract_call")
+          : undefined;
+
+        const result = await service.setApprovalForAll(
+          account,
+          agentId,
+          opts.operator,
+          opts.approved,
+          feeAmount,
+          opts.sponsored
+        );
+
+        printJson({
+          success: true,
+          txid: result.txid,
+          message: opts.approved
+            ? `Operator ${opts.operator} approved for agent ${agentId}.`
+            : `Operator ${opts.operator} revoked for agent ${agentId}.`,
+          agentId,
+          operator: opts.operator,
+          approved: opts.approved,
+          network: NETWORK,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// set-wallet
+// ---------------------------------------------------------------------------
+
+program
+  .command("set-wallet")
+  .description(
+    "Set the agent wallet for an identity to tx-sender (the active wallet address). " +
+      "This links the Stacks address to the agent ID without requiring a signature. " +
+      "Caller must be the agent owner or an approved operator. Requires an unlocked wallet."
+  )
+  .requiredOption(
+    "--agent-id <id>",
+    "Agent ID to update (non-negative integer)"
+  )
+  .option(
+    "--fee <fee>",
+    'Fee preset ("low", "medium", "high") or micro-STX amount'
+  )
+  .option(
+    "--sponsored",
+    "Submit as a sponsored transaction",
+    false
+  )
+  .action(
+    async (opts: {
+      agentId: string;
+      fee?: string;
+      sponsored: boolean;
+    }) => {
+      try {
+        const walletManager = getWalletManager();
+        const account = walletManager.getActiveAccount();
+        if (!account) {
+          throw new Error("No active wallet. Please unlock your wallet first.");
+        }
+
+        const agentId = parseInt(opts.agentId, 10);
+        if (isNaN(agentId) || agentId < 0) {
+          throw new Error("--agent-id must be a non-negative integer");
+        }
+
+        const service = new Erc8004Service(NETWORK);
+        const feeAmount = opts.fee
+          ? await resolveFee(opts.fee, NETWORK, "contract_call")
+          : undefined;
+
+        const result = await service.setAgentWalletDirect(
+          account,
+          agentId,
+          feeAmount,
+          opts.sponsored
+        );
+
+        printJson({
+          success: true,
+          txid: result.txid,
+          message: `Agent wallet set to tx-sender (${account.address}) for agent ${agentId}.`,
+          agentId,
+          wallet: account.address,
+          network: NETWORK,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// unset-wallet
+// ---------------------------------------------------------------------------
+
+program
+  .command("unset-wallet")
+  .description(
+    "Remove the agent wallet association from an agent identity in the ERC-8004 identity registry. " +
+      "Caller must be the agent owner or an approved operator. Requires an unlocked wallet."
+  )
+  .requiredOption(
+    "--agent-id <id>",
+    "Agent ID to update (non-negative integer)"
+  )
+  .option(
+    "--fee <fee>",
+    'Fee preset ("low", "medium", "high") or micro-STX amount'
+  )
+  .option(
+    "--sponsored",
+    "Submit as a sponsored transaction",
+    false
+  )
+  .action(
+    async (opts: {
+      agentId: string;
+      fee?: string;
+      sponsored: boolean;
+    }) => {
+      try {
+        const walletManager = getWalletManager();
+        const account = walletManager.getActiveAccount();
+        if (!account) {
+          throw new Error("No active wallet. Please unlock your wallet first.");
+        }
+
+        const agentId = parseInt(opts.agentId, 10);
+        if (isNaN(agentId) || agentId < 0) {
+          throw new Error("--agent-id must be a non-negative integer");
+        }
+
+        const service = new Erc8004Service(NETWORK);
+        const feeAmount = opts.fee
+          ? await resolveFee(opts.fee, NETWORK, "contract_call")
+          : undefined;
+
+        const result = await service.unsetAgentWallet(
+          account,
+          agentId,
+          feeAmount,
+          opts.sponsored
+        );
+
+        printJson({
+          success: true,
+          txid: result.txid,
+          message: `Agent wallet cleared for agent ${agentId}.`,
+          agentId,
+          network: NETWORK,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// transfer
+// ---------------------------------------------------------------------------
+
+program
+  .command("transfer")
+  .description(
+    "Transfer an agent identity NFT to a new owner. " +
+      "The active wallet (tx-sender) must equal the current owner. " +
+      "Transfer automatically clears the agent wallet association. Requires an unlocked wallet."
+  )
+  .requiredOption(
+    "--agent-id <id>",
+    "Agent ID (token ID) to transfer (non-negative integer)"
+  )
+  .requiredOption(
+    "--recipient <address>",
+    "Stacks address of the new owner"
+  )
+  .option(
+    "--fee <fee>",
+    'Fee preset ("low", "medium", "high") or micro-STX amount'
+  )
+  .option(
+    "--sponsored",
+    "Submit as a sponsored transaction",
+    false
+  )
+  .action(
+    async (opts: {
+      agentId: string;
+      recipient: string;
+      fee?: string;
+      sponsored: boolean;
+    }) => {
+      try {
+        const walletManager = getWalletManager();
+        const account = walletManager.getActiveAccount();
+        if (!account) {
+          throw new Error("No active wallet. Please unlock your wallet first.");
+        }
+
+        const agentId = parseInt(opts.agentId, 10);
+        if (isNaN(agentId) || agentId < 0) {
+          throw new Error("--agent-id must be a non-negative integer");
+        }
+
+        const service = new Erc8004Service(NETWORK);
+        const feeAmount = opts.fee
+          ? await resolveFee(opts.fee, NETWORK, "contract_call")
+          : undefined;
+
+        const result = await service.transferIdentity(
+          account,
+          agentId,
+          account.address,
+          opts.recipient,
+          feeAmount,
+          opts.sponsored
+        );
+
+        printJson({
+          success: true,
+          txid: result.txid,
+          message: `Identity NFT transfer submitted for agent ${agentId}.`,
+          agentId,
+          sender: account.address,
+          recipient: opts.recipient,
+          network: NETWORK,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// get-metadata
+// ---------------------------------------------------------------------------
+
+program
+  .command("get-metadata")
+  .description(
+    "Read a metadata value by key from the ERC-8004 identity registry. " +
+      "Returns the raw buffer value as a hex string. Does not require a wallet."
+  )
+  .requiredOption(
+    "--agent-id <id>",
+    "Agent ID to query (non-negative integer)"
+  )
+  .requiredOption(
+    "--key <key>",
+    "Metadata key to read"
+  )
+  .action(async (opts: { agentId: string; key: string }) => {
     try {
       const agentId = parseInt(opts.agentId, 10);
       if (isNaN(agentId) || agentId < 0) {
@@ -359,206 +713,59 @@ program
 
       const service = new Erc8004Service(NETWORK);
       const callerAddress = getCallerAddress();
-      const reputation = await service.getReputation(agentId, callerAddress);
+      const value = await service.getMetadata(agentId, opts.key, callerAddress);
 
-      if (reputation.totalFeedback === 0) {
-        printJson({
-          success: true,
-          agentId,
-          totalFeedback: 0,
-          summaryValue: "0",
-          summaryValueDecimals: 0,
-          message: "No feedback yet for this agent",
-          network: NETWORK,
-        });
-        return;
-      }
-
-      printJson({
-        success: true,
-        agentId: reputation.agentId,
-        totalFeedback: reputation.totalFeedback,
-        summaryValue: reputation.summaryValue,
-        summaryValueDecimals: reputation.summaryValueDecimals,
-        network: NETWORK,
-      });
-    } catch (error) {
-      handleError(error);
-    }
-  });
-
-// ---------------------------------------------------------------------------
-// request-validation
-// ---------------------------------------------------------------------------
-
-program
-  .command("request-validation")
-  .description(
-    "Request third-party validation for an agent using the ERC-8004 validation registry. " +
-      "The validator will be notified and can respond with a score (0-100). " +
-      "Must be called by the agent owner or an approved operator. " +
-      "Requires an unlocked wallet."
-  )
-  .requiredOption(
-    "--validator <address>",
-    "Stacks address of the validator"
-  )
-  .requiredOption(
-    "--agent-id <id>",
-    "Agent ID to request validation for (non-negative integer)"
-  )
-  .requiredOption(
-    "--request-uri <uri>",
-    "URI with validation request details"
-  )
-  .requiredOption(
-    "--request-hash <hex>",
-    "Unique request hash as hex string (32 bytes / 64 hex chars)"
-  )
-  .option(
-    "--fee <fee>",
-    'Fee preset ("low", "medium", "high") or micro-STX amount'
-  )
-  .option("--sponsored", "Submit as a sponsored transaction", false)
-  .action(
-    async (opts: {
-      validator: string;
-      agentId: string;
-      requestUri: string;
-      requestHash: string;
-      fee?: string;
-      sponsored: boolean;
-    }) => {
-      try {
-        const walletManager = getWalletManager();
-        const account = walletManager.getActiveAccount();
-        if (!account) {
-          throw new Error("No active wallet. Please unlock your wallet first.");
-        }
-
-        const agentId = parseInt(opts.agentId, 10);
-        if (isNaN(agentId) || agentId < 0) {
-          throw new Error("--agent-id must be a non-negative integer");
-        }
-
-        const normalizedHash = normalizeHex(opts.requestHash, "requestHash", 32);
-        const hashBuffer = Buffer.from(normalizedHash, "hex");
-
-        const service = new Erc8004Service(NETWORK);
-        const feeAmount = opts.fee
-          ? await resolveFee(opts.fee, NETWORK, "contract_call")
-          : undefined;
-
-        const result = await service.requestValidation(
-          account,
-          opts.validator,
-          agentId,
-          opts.requestUri,
-          hashBuffer,
-          feeAmount,
-          opts.sponsored
-        );
-
-        printJson({
-          success: true,
-          txid: result.txid,
-          message: "Validation request submitted successfully",
-          validator: opts.validator,
-          agentId,
-          requestHash: opts.requestHash,
-          network: NETWORK,
-          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
-        });
-      } catch (error) {
-        handleError(error);
-      }
-    }
-  );
-
-// ---------------------------------------------------------------------------
-// get-validation-status
-// ---------------------------------------------------------------------------
-
-program
-  .command("get-validation-status")
-  .description(
-    "Get the status of a validation request using the ERC-8004 validation registry. " +
-      "Returns validator, agent ID, response score (0-100), and response metadata."
-  )
-  .requiredOption(
-    "--request-hash <hex>",
-    "Request hash as hex string (32 bytes / 64 hex chars)"
-  )
-  .action(async (opts: { requestHash: string }) => {
-    try {
-      const normalizedHash = normalizeHex(opts.requestHash, "requestHash", 32);
-      const hashBuffer = Buffer.from(normalizedHash, "hex");
-
-      const service = new Erc8004Service(NETWORK);
-      const callerAddress = getCallerAddress();
-      const status = await service.getValidationStatus(hashBuffer, callerAddress);
-
-      if (!status) {
+      if (value === null) {
         printJson({
           success: false,
-          requestHash: opts.requestHash,
-          message: "Validation request not found",
+          agentId,
+          key: opts.key,
+          message: "Metadata key not found for this agent",
           network: NETWORK,
         });
         return;
       }
-
-      printJson({
-        success: true,
-        requestHash: opts.requestHash,
-        validator: status.validator,
-        agentId: status.agentId,
-        response: status.response,
-        responseHash: status.responseHash,
-        tag: status.tag || "(no tag)",
-        lastUpdate: status.lastUpdate,
-        hasResponse: status.hasResponse,
-        network: NETWORK,
-      });
-    } catch (error) {
-      handleError(error);
-    }
-  });
-
-// ---------------------------------------------------------------------------
-// get-validation-summary
-// ---------------------------------------------------------------------------
-
-program
-  .command("get-validation-summary")
-  .description(
-    "Get validation summary for an agent using the ERC-8004 validation registry. " +
-      "Returns total validation count and average response score (0-100)."
-  )
-  .requiredOption(
-    "--agent-id <id>",
-    "Agent ID to get validation summary for (non-negative integer)"
-  )
-  .action(async (opts: { agentId: string }) => {
-    try {
-      const agentId = parseInt(opts.agentId, 10);
-      if (isNaN(agentId) || agentId < 0) {
-        throw new Error("--agent-id must be a non-negative integer");
-      }
-
-      const service = new Erc8004Service(NETWORK);
-      const callerAddress = getCallerAddress();
-      const summary = await service.getValidationSummary(agentId, callerAddress);
 
       printJson({
         success: true,
         agentId,
-        count: summary.count,
-        averageResponse: summary.avgResponse,
-        message:
-          summary.count === 0
-            ? "No validations yet for this agent"
-            : `${summary.count} validation(s) with average score ${summary.avgResponse}/100`,
+        key: opts.key,
+        valueHex: value,
+        network: NETWORK,
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// get-last-id
+// ---------------------------------------------------------------------------
+
+program
+  .command("get-last-id")
+  .description(
+    "Get the most recently minted agent ID from the ERC-8004 identity registry. " +
+      "Returns null if no agents have been registered. Does not require a wallet."
+  )
+  .action(async () => {
+    try {
+      const service = new Erc8004Service(NETWORK);
+      const callerAddress = getCallerAddress();
+      const lastId = await service.getLastTokenId(callerAddress);
+
+      if (lastId === null) {
+        printJson({
+          success: false,
+          message: "No agents have been registered yet",
+          network: NETWORK,
+        });
+        return;
+      }
+
+      printJson({
+        success: true,
+        lastAgentId: lastId,
         network: NETWORK,
       });
     } catch (error) {

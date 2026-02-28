@@ -1,8 +1,8 @@
 ---
 name: identity
-description: ERC-8004 on-chain agent identity and reputation management — register agent identities, query identity info, submit and retrieve reputation feedback, and manage third-party validation requests.
+description: ERC-8004 on-chain agent identity management — register agent identities, update URI and metadata, manage operator approvals, set/unset agent wallet, transfer identity NFTs, and query identity info.
 user-invocable: false
-arguments: register | get | give-feedback | get-reputation | request-validation | get-validation-status | get-validation-summary
+arguments: register | get | set-uri | set-metadata | set-approval | set-wallet | unset-wallet | transfer | get-metadata | get-last-id
 entry: identity/identity.ts
 requires: [wallet]
 tags: [l2, write]
@@ -10,7 +10,7 @@ tags: [l2, write]
 
 # Identity Skill
 
-Provides ERC-8004 on-chain agent identity, reputation, and validation operations. Read operations (get, get-reputation, get-validation-status, get-validation-summary) work without a wallet. Write operations (register, give-feedback, request-validation) require an unlocked wallet.
+Provides ERC-8004 on-chain agent identity operations using the identity-registry contract. Read operations (get, get-metadata, get-last-id) work without a wallet. Write operations (register, set-uri, set-metadata, set-approval, set-wallet, unset-wallet, transfer) require an unlocked wallet.
 
 ## Usage
 
@@ -68,23 +68,17 @@ Output:
 }
 ```
 
-### give-feedback
+### set-uri
 
-Submit feedback for an agent using the ERC-8004 reputation registry. Feedback value is normalized to 18 decimals (WAD) internally for aggregation. Requires an unlocked wallet.
+Update the URI for an agent identity. Caller must be the agent owner or an approved operator. Requires an unlocked wallet.
 
 ```
-bun run identity/identity.ts give-feedback --agent-id <id> --value <n> --decimals <n> [options]
+bun run identity/identity.ts set-uri --agent-id <id> --uri <uri> [--fee <fee>] [--sponsored]
 ```
 
 Options:
-- `--agent-id` (required) — Agent ID to give feedback for
-- `--value` (required) — Feedback value (e.g., `5` for a 5-star rating)
-- `--decimals` (required) — Decimals for the value (e.g., `0` for integer ratings)
-- `--tag1` (optional) — Optional tag 1 (max 64 chars)
-- `--tag2` (optional) — Optional tag 2 (max 64 chars)
-- `--endpoint` (optional) — Optional endpoint URL
-- `--feedback-uri` (optional) — Optional feedback URI
-- `--feedback-hash` (optional) — Optional feedback hash as hex string (32 bytes)
+- `--agent-id` (required) — Agent ID to update (non-negative integer)
+- `--uri` (required) — New URI pointing to agent metadata (IPFS, HTTP, etc.)
 - `--fee` (optional) — Fee preset (`low`, `medium`, `high`) or micro-STX amount
 - `--sponsored` (flag) — Submit as a sponsored transaction
 
@@ -93,51 +87,26 @@ Output:
 {
   "success": true,
   "txid": "0xdef...",
-  "message": "Feedback submitted successfully",
+  "message": "Identity URI update transaction submitted.",
   "agentId": 42,
-  "value": 5,
-  "decimals": 0,
+  "uri": "ipfs://newuri...",
   "network": "mainnet",
   "explorerUrl": "https://explorer.hiro.so/txid/0xdef..."
 }
 ```
 
-### get-reputation
+### set-metadata
 
-Get aggregated reputation summary for an agent from the ERC-8004 reputation registry. Returns average rating as a WAD string (18 decimals) and total feedback count.
-
-```
-bun run identity/identity.ts get-reputation --agent-id <id>
-```
-
-Options:
-- `--agent-id` (required) — Agent ID to get reputation for
-
-Output:
-```json
-{
-  "success": true,
-  "agentId": 42,
-  "totalFeedback": 10,
-  "summaryValue": "4500000000000000000",
-  "summaryValueDecimals": 18,
-  "network": "mainnet"
-}
-```
-
-### request-validation
-
-Request third-party validation for an agent using the ERC-8004 validation registry. The validator will be notified and can respond with a score (0-100). Must be called by the agent owner or an approved operator. Requires an unlocked wallet.
+Set a metadata key-value pair for an agent identity. Value must be a hex-encoded buffer (max 512 bytes). The key `agentWallet` is reserved and will be rejected by the contract. Caller must be the agent owner or an approved operator. Requires an unlocked wallet.
 
 ```
-bun run identity/identity.ts request-validation --validator <addr> --agent-id <id> --request-uri <uri> --request-hash <hex>
+bun run identity/identity.ts set-metadata --agent-id <id> --key <key> --value <hex> [--fee <fee>] [--sponsored]
 ```
 
 Options:
-- `--validator` (required) — Stacks address of the validator
-- `--agent-id` (required) — Agent ID to request validation for
-- `--request-uri` (required) — URI with validation request details
-- `--request-hash` (required) — Unique request hash as hex string (32 bytes / 64 hex chars)
+- `--agent-id` (required) — Agent ID to update (non-negative integer)
+- `--key` (required) — Metadata key (string)
+- `--value` (required) — Metadata value as a hex-encoded buffer (e.g., `616c696365` for "alice")
 - `--fee` (optional) — Fee preset (`low`, `medium`, `high`) or micro-STX amount
 - `--sponsored` (flag) — Submit as a sponsored transaction
 
@@ -146,70 +115,168 @@ Output:
 {
   "success": true,
   "txid": "0xghi...",
-  "message": "Validation request submitted successfully",
-  "validator": "SP3...",
+  "message": "Metadata set transaction submitted.",
   "agentId": 42,
-  "requestHash": "a1b2c3...",
+  "key": "name",
+  "valueHex": "616c696365",
   "network": "mainnet",
   "explorerUrl": "https://explorer.hiro.so/txid/0xghi..."
 }
 ```
 
-### get-validation-status
+### set-approval
 
-Get the status of a validation request using the ERC-8004 validation registry. Returns validator, agent ID, response score (0-100), and response metadata.
+Approve or revoke an operator for an agent identity. Approved operators can update URI, metadata, and wallet on behalf of the owner. Only the NFT owner can call this. Requires an unlocked wallet.
 
 ```
-bun run identity/identity.ts get-validation-status --request-hash <hex>
+bun run identity/identity.ts set-approval --agent-id <id> --operator <address> [--approved] [--fee <fee>] [--sponsored]
 ```
 
 Options:
-- `--request-hash` (required) — Request hash as hex string (32 bytes / 64 hex chars)
+- `--agent-id` (required) — Agent ID to update (non-negative integer)
+- `--operator` (required) — Stacks address of the operator to approve or revoke
+- `--approved` (flag) — Grant approval (omit to revoke)
+- `--fee` (optional) — Fee preset (`low`, `medium`, `high`) or micro-STX amount
+- `--sponsored` (flag) — Submit as a sponsored transaction
 
 Output:
 ```json
 {
   "success": true,
-  "requestHash": "a1b2c3...",
-  "validator": "SP3...",
+  "txid": "0xjkl...",
+  "message": "Operator SP3... approved for agent 42.",
   "agentId": 42,
-  "response": 85,
-  "responseHash": "d4e5f6...",
-  "tag": "verified",
-  "lastUpdate": 900000,
-  "hasResponse": true,
+  "operator": "SP3...",
+  "approved": true,
+  "network": "mainnet",
+  "explorerUrl": "https://explorer.hiro.so/txid/0xjkl..."
+}
+```
+
+### set-wallet
+
+Set the agent wallet for an identity to tx-sender (the active wallet address). This links the active Stacks address to the agent ID without requiring a separate signature. Caller must be the agent owner or an approved operator. Requires an unlocked wallet.
+
+```
+bun run identity/identity.ts set-wallet --agent-id <id> [--fee <fee>] [--sponsored]
+```
+
+Options:
+- `--agent-id` (required) — Agent ID to update (non-negative integer)
+- `--fee` (optional) — Fee preset (`low`, `medium`, `high`) or micro-STX amount
+- `--sponsored` (flag) — Submit as a sponsored transaction
+
+Output:
+```json
+{
+  "success": true,
+  "txid": "0xmno...",
+  "message": "Agent wallet set to tx-sender (SP1...) for agent 42.",
+  "agentId": 42,
+  "wallet": "SP1...",
+  "network": "mainnet",
+  "explorerUrl": "https://explorer.hiro.so/txid/0xmno..."
+}
+```
+
+### unset-wallet
+
+Remove the agent wallet association from an agent identity. Caller must be the agent owner or an approved operator. Requires an unlocked wallet.
+
+```
+bun run identity/identity.ts unset-wallet --agent-id <id> [--fee <fee>] [--sponsored]
+```
+
+Options:
+- `--agent-id` (required) — Agent ID to update (non-negative integer)
+- `--fee` (optional) — Fee preset (`low`, `medium`, `high`) or micro-STX amount
+- `--sponsored` (flag) — Submit as a sponsored transaction
+
+Output:
+```json
+{
+  "success": true,
+  "txid": "0xpqr...",
+  "message": "Agent wallet cleared for agent 42.",
+  "agentId": 42,
+  "network": "mainnet",
+  "explorerUrl": "https://explorer.hiro.so/txid/0xpqr..."
+}
+```
+
+### transfer
+
+Transfer an agent identity NFT to a new owner. The active wallet (tx-sender) must equal the current owner. Transfer automatically clears the agent wallet association. Requires an unlocked wallet.
+
+```
+bun run identity/identity.ts transfer --agent-id <id> --recipient <address> [--fee <fee>] [--sponsored]
+```
+
+Options:
+- `--agent-id` (required) — Agent ID (token ID) to transfer (non-negative integer)
+- `--recipient` (required) — Stacks address of the new owner
+- `--fee` (optional) — Fee preset (`low`, `medium`, `high`) or micro-STX amount
+- `--sponsored` (flag) — Submit as a sponsored transaction
+
+Output:
+```json
+{
+  "success": true,
+  "txid": "0xstu...",
+  "message": "Identity NFT transfer submitted for agent 42.",
+  "agentId": 42,
+  "sender": "SP1...",
+  "recipient": "SP4...",
+  "network": "mainnet",
+  "explorerUrl": "https://explorer.hiro.so/txid/0xstu..."
+}
+```
+
+### get-metadata
+
+Read a metadata value by key from the ERC-8004 identity registry. Returns the raw buffer value as a hex string. Does not require a wallet.
+
+```
+bun run identity/identity.ts get-metadata --agent-id <id> --key <key>
+```
+
+Options:
+- `--agent-id` (required) — Agent ID to query (non-negative integer)
+- `--key` (required) — Metadata key to read
+
+Output:
+```json
+{
+  "success": true,
+  "agentId": 42,
+  "key": "name",
+  "valueHex": "616c696365",
   "network": "mainnet"
 }
 ```
 
-### get-validation-summary
+### get-last-id
 
-Get validation summary for an agent using the ERC-8004 validation registry. Returns total validation count and average response score (0-100).
+Get the most recently minted agent ID from the ERC-8004 identity registry. Returns null if no agents have been registered. Does not require a wallet.
 
 ```
-bun run identity/identity.ts get-validation-summary --agent-id <id>
+bun run identity/identity.ts get-last-id
 ```
-
-Options:
-- `--agent-id` (required) — Agent ID to get validation summary for
 
 Output:
 ```json
 {
   "success": true,
-  "agentId": 42,
-  "count": 3,
-  "averageResponse": 88,
-  "message": "3 validation(s) with average score 88/100",
+  "lastAgentId": 99,
   "network": "mainnet"
 }
 ```
 
 ## Notes
 
-- Read operations (get, get-reputation, get-validation-status, get-validation-summary) work without a wallet
-- Write operations (register, give-feedback, request-validation) require an unlocked wallet (`bun run wallet/wallet.ts unlock`)
+- Read operations (get, get-metadata, get-last-id) work without a wallet
+- Write operations require an unlocked wallet (`bun run wallet/wallet.ts unlock`)
 - Agent IDs are assigned by the contract upon registration — check the transaction result to find your assigned ID
-- Feedback values use WAD encoding (18 decimals) internally; summaryValue is the raw WAD string
-- Validation response scores are integers from 0 to 100
-- Request hashes must be unique 32-byte values provided as 64-character hex strings
+- Operator approvals allow a delegate address to update URI, metadata, and wallet for an agent
+- Transfer automatically clears the agent wallet association; use `set-wallet` after transfer if needed
+- The `agentWallet` key is reserved — use `set-wallet` / `unset-wallet` subcommands instead

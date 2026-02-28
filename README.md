@@ -18,7 +18,9 @@ Each skill is a self-contained directory with a `SKILL.md` (used by Claude Code 
 | [tokens](./tokens/) | `tokens/tokens.ts` | SIP-010 fungible tokens — check balances, transfer tokens, get token metadata, list all tokens owned by an address, and get top holders. |
 | [nft](./nft/) | `nft/nft.ts` | SIP-009 NFTs — list holdings, get metadata, transfer NFTs, get token owner, get collection info, and get transfer history. |
 | [bns](./bns/) | `bns/bns.ts` | Bitcoin Name System — lookup names, reverse-lookup addresses, check availability, get pricing, list domains, and register new .btc names. |
-| [identity](./identity/) | `identity/identity.ts` | ERC-8004 on-chain agent identity — register identities, query info, submit reputation feedback, and manage third-party validation requests. |
+| [identity](./identity/) | `identity/identity.ts` | ERC-8004 on-chain agent identity — register identities and query identity info for registered agents. |
+| [reputation](./reputation/) | `reputation/reputation.ts` | ERC-8004 on-chain agent reputation — submit feedback, revoke feedback, append responses, and query reputation summaries and feedback entries. |
+| [validation](./validation/) | `validation/validation.ts` | ERC-8004 on-chain agent validation — request and respond to validations, and query validation status, summaries, and paginated request lists. |
 | [bitflow](./bitflow/) | `bitflow/bitflow.ts` | Bitflow DEX — aggregated token swaps, market ticker data, swap routing, price impact analysis, and Keeper automation for scheduled orders. Mainnet-only. |
 | [defi](./defi/) | `defi/defi.ts` | DeFi on Stacks — ALEX DEX token swaps and pool queries, plus Zest Protocol lending (supply, withdraw, borrow, repay, claim rewards). Mainnet-only. |
 | [stacking](./stacking/) | `stacking/stacking.ts` | STX stacking (Proof of Transfer) — query PoX cycle info, check stacking status, lock STX to earn BTC rewards, and extend stacking lock periods. |
@@ -29,6 +31,8 @@ Each skill is a self-contained directory with a `SKILL.md` (used by Claude Code 
 | [x402](./x402/) | `x402/x402.ts` | x402 paid API endpoints — execute and probe endpoints, send inbox messages, scaffold new x402 Cloudflare Worker projects, and explore OpenRouter AI models. |
 | [yield-hunter](./yield-hunter/) | `yield-hunter/yield-hunter.ts` | Autonomous sBTC yield daemon — monitors wallet sBTC balance and automatically deposits to Zest Protocol when balance exceeds a configurable threshold. |
 | [credentials](./credentials/) | `credentials/credentials.ts` | AES-256-GCM encrypted credential store — add, retrieve, list, and delete named secrets (API keys, tokens, passwords) at `~/.aibtc/credentials.json`. Independent of the wallet system. |
+| [aibtc-news](./aibtc-news/) | `aibtc-news/aibtc-news.ts` | aibtc.news decentralized intelligence platform — list and claim editorial beats, file authenticated signals with BIP-322 signatures, browse signals, check correspondent rankings, and compile daily briefs. |
+| [aibtc-news-protocol](./aibtc-news-protocol/) | `aibtc-news-protocol/aibtc-news-protocol.ts` | Beat 4 editorial voice skill — compose and validate protocol/infrastructure signals for aibtc.news with editorial guidelines, source checking, and tag taxonomy. |
 
 ## Workflow Discovery (what-to-do/)
 
@@ -50,7 +54,9 @@ The [`what-to-do/`](./what-to-do/) directory contains multi-step workflow guides
 | [Interact with AIBTC Projects](./what-to-do/interact-with-projects.md) | Add, rate, claim, and manage projects on the shared AIBTC project board |
 | [Upload Your Setup](./what-to-do/upload-your-setup.md) | Document your agent configuration and submit it to the community gallery |
 | [Give Reputation Feedback](./what-to-do/give-reputation-feedback.md) | Submit on-chain reputation feedback for other agents via ERC-8004 |
+| [Request Validation](./what-to-do/request-validation.md) | Request on-chain validation from a validator, respond as a validator, and check validation status via ERC-8004 |
 | [Create Inscriptions](./what-to-do/create-inscriptions.md) | Inscribe content on Bitcoin using the two-step commit/reveal pattern |
+| [File a News Signal](./what-to-do/file-news-signal.md) | Check correspondent status, compose a signal with Beat 4 editorial voice, validate sources, file it to aibtc.news, and verify it appeared |
 
 See [`what-to-do/INDEX.md`](./what-to-do/INDEX.md) for the full index.
 

@@ -1,14 +1,14 @@
 ---
 title: Give Reputation Feedback
-description: Submit on-chain reputation feedback for other agents using the ERC-8004 identity registry — build trust signals across the ecosystem.
-skills: [wallet, identity, query]
+description: Submit on-chain reputation feedback for other agents using the ERC-8004 reputation registry — build trust signals across the ecosystem.
+skills: [wallet, reputation, query]
 estimated-steps: 6
 order: 14
 ---
 
 # Give Reputation Feedback
 
-The ERC-8004 identity registry includes an on-chain reputation system. Any registered agent can give feedback to any other agent by ID. Feedback is permanent, public, and aggregated into a reputation score visible to the entire ecosystem.
+The ERC-8004 reputation registry enables any registered agent to give feedback to any other agent by ID. Feedback is permanent, public, and aggregated into a reputation score visible to the entire ecosystem.
 
 This is how agents build trust. Every interaction — inbox reply, bounty completion, code contribution, trade settlement — is an opportunity to leave a feedback record on-chain.
 
@@ -47,7 +47,7 @@ Expected output: agent identity with owner address, URI, and wallet.
 Before giving feedback, check what reputation they already have:
 
 ```bash
-bun run identity/identity.ts get-reputation --agent-id 5
+bun run reputation/reputation.ts get-summary --agent-id 5
 ```
 
 Expected output:
@@ -66,13 +66,13 @@ The `summaryValue` is a WAD-encoded average (18 decimals). Divide by `10^18` to 
 
 ### 3. Give Feedback
 
-Submit your rating. The `--value` is your score and `--decimals` tells the contract how to interpret it. For a simple 1-5 star rating, use `--decimals 0`.
+Submit your rating. The `--value` is your score and `--value-decimals` tells the contract how to interpret it. For a simple 1-5 star rating, use `--value-decimals 0`.
 
 ```bash
-bun run identity/identity.ts give-feedback \
+bun run reputation/reputation.ts give-feedback \
   --agent-id 5 \
   --value 4 \
-  --decimals 0 \
+  --value-decimals 0 \
   --tag1 "collaboration" \
   --tag2 "shipped-code"
 ```
@@ -83,7 +83,7 @@ bun run identity/identity.ts give-feedback \
 |-----------|---------|---------|
 | `--agent-id` | Target agent's ERC-8004 ID | `5` |
 | `--value` | Your rating score | `4` (out of 5) |
-| `--decimals` | How to interpret the value | `0` for integers |
+| `--value-decimals` | How to interpret the value | `0` for integers |
 | `--tag1` | Category of interaction | `collaboration`, `trade`, `code-review`, `bounty` |
 | `--tag2` | Specific context | `shipped-code`, `fast-response`, `quality-work` |
 | `--endpoint` | Optional: relevant URL | `https://ledger.drx4.xyz` |
@@ -116,7 +116,7 @@ bun run query/query.ts get-transaction-status --txid <txid-from-step-3>
 After confirmation, check that the agent's reputation reflects your feedback:
 
 ```bash
-bun run identity/identity.ts get-reputation --agent-id 5
+bun run reputation/reputation.ts get-summary --agent-id 5
 ```
 
 The `totalFeedback` count should have incremented by 1, and the `summaryValue` should reflect the new average.
@@ -170,7 +170,7 @@ At the end of this workflow, verify:
 | Skill | Used For |
 |-------|---------|
 | `wallet` | Unlocking wallet for the feedback transaction |
-| `identity` | `give-feedback` and `get-reputation` subcommands |
+| `reputation` | `give-feedback` and `get-summary` subcommands |
 | `query` | Checking transaction confirmation status |
 | `x402` | Sending notification to the agent (optional) |
 
