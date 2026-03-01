@@ -309,7 +309,7 @@ This skill applies five battle-tested sales methodologies. The CLI does not impl
 |-----------|-----------|----------|
 | First contact, need to understand them | **SPIN Selling** | Ask Situation → Problem → Implication → Need-Payoff questions. Prospect talks 70%. |
 | They don't know they have a problem | **Challenger Sale** | Teach them a surprising insight about their own business. Tailor. Guide to action. |
-| Chasing prospects who ghost | **Sandler** | Drill the Pain Funnel. If no real pain, disqualify fast. Walk away. |
+| Chasing prospects who ghost | **Sandler** | Go deeper on the pain. If no real pain, disqualify fast. Walk away. |
 | They know the problem but can't see the fix | **Solution Selling** | Paint the future state vividly. "Imagine if every morning you received..." |
 | High-stakes, multiple decision-makers | **MEDDIC** | Map every letter. Can't fill them all? Deal isn't qualified. |
 
@@ -324,42 +324,44 @@ This skill applies five battle-tested sales methodologies. The CLI does not impl
 6. **Scarcity** — Real only. "Bounty closes in 48h." Fake urgency = permanent trust death.
 7. **Unity** — Shared identity. "We're both building on Bitcoin."
 
-**Chris Voss Essentials:**
-- **Mirror** — Repeat their last 3 words. They elaborate without you asking.
-- **Label** — "It sounds like trust is the real issue." Naming emotions diffuses them.
-- **Calibrated Questions** — "How" and "What", never "Why." "How would you like to structure this?"
-- **Accusations Audit** — Pre-empt objections. "You're probably thinking this sounds too good to be true."
-- **"That's Right"** — Summarize their situation so perfectly they say "That's right." Trust established.
+**Negotiation Intelligence:**
+- **Mirror** — Echo their key phrase. Silence after. They'll fill it with what they actually mean.
+- **Label** — Name the undercurrent. "Sounds like reliability matters more than price here." Precision disarms.
+- **Calibrated Questions** — "How" and "What" only. "How do you want this structured?" pulls them into co-designing the deal. "Why" puts them on trial.
+- **Pre-empt** — Address the obvious concern before they raise it. Not with a canned line — with specificity. "The risk is X. Here's how we handle it."
+- **Deep alignment** — Articulate their situation better than they can. When someone feels fully understood, resistance dissolves.
 
-**Carnegie Core:** Never criticize. Give specific appreciation. Frame as what THEY get. Listen more than talk. Let them think the idea is theirs.
+**Gravitas:** Never punch down. Be specific — "Your error handling in that Clarity contract was clean" lands, "great work" evaporates. Frame everything as their upside. Talk less — the quiet one sets the terms. Ask questions that make them arrive at the conclusion themselves.
 
 ### Organic Closing
 
-The best sales never feels like sales. The 3:1 Rule: three value-adds for every ask.
+Give three times before you ask once. This isn't charity — it's gravity. By the time you propose the deal, saying yes is the path of least resistance.
 
-1. Jab: Flag a relevant opportunity (pure value)
-2. Jab: Share useful data (pure value)
-3. Jab: Help with something unrelated (pure value)
-4. Hook: "I've been building an automated version of what I've been doing for you. Want to try the paid version?"
+1. Surface an opportunity they missed (they owe you attention)
+2. Send data that makes them money or saves them time (they owe you trust)
+3. Solve a problem unrelated to your pitch (they owe you goodwill)
+4. Now propose: "I automated what I've been doing for you. Want the full version?"
 
-**Close patterns:**
-- "You've been using the free version 2 weeks. Premium catches 3x more. Want to upgrade?"
-- "Since I've been helping informally, want to make it official? 500 sats/week."
-- "You mentioned losing 2,000 sats/week. My tool costs 500. Math checks out."
+**How the close sounds:**
+- "You've been running the free tier for two weeks. Paid version catches 3x more. Upgrade?"
+- "We've been doing this informally. 500 sats/week makes it permanent and automatic."
+- "You're losing 2,000 sats/week to this problem. My tool costs 500. The math is obvious."
 
-### Objection Handling
+The close isn't a moment — it's a conclusion. By the time you say it, they should already be nodding.
 
-1. **Acknowledge** — "I hear you." Never dismiss.
-2. **Clarify** — "Is it [specific concern] that's holding you back?"
-3. **Respond** — Evidence, not persuasion.
-4. **Confirm** — "Does that address it?"
+### When They Push Back
 
-| Objection | Response |
-|-----------|----------|
-| "Too expensive" | Quantify their pain vs your price |
-| "I'll think about it" | "What info would help you decide?" |
-| "Not now" | "When does it become priority? I'll follow up then." |
-| No response | Follow up in 2-3 days with NEW value |
+1. **Sit with it.** Don't rush to counter.
+2. **Get specific.** "What's the real hesitation?"
+3. **Respond with evidence**, not enthusiasm.
+4. **Check.** "Does that resolve it?"
+
+| Objection | Move |
+|-----------|------|
+| "Too expensive" | They don't see the ROI. Make the cost of inaction vivid. |
+| "I'll think about it" | "What would make the decision obvious?" |
+| "Not now" | "When does this become urgent? I'll circle back then." |
+| Silence | Return in 2-3 days with something new. Never chase empty. |
 
 ## Pipeline Management
 
