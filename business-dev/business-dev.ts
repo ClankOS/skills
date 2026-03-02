@@ -262,6 +262,17 @@ program
         .filter((d) => d.stage >= 2 && d.stage < 5)
         .reduce((s, d) => s + d.value_sats, 0);
 
+      // Coverage ratio: pipeline value vs recent closed revenue (weekly)
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const weekRevenue = data.closed_deals
+        .filter((d) => d.updated_at > weekAgo)
+        .reduce((s, d) => s + (d.closed_revenue || 0), 0);
+      const coverageRatio = weekRevenue > 0
+        ? `${(totalValue / weekRevenue).toFixed(1)}x`
+        : totalValue > 0
+          ? "no closed revenue yet"
+          : "empty";
+
       printJson({
         pipeline: options.type || "all",
         deals: deals.map((d) => ({
@@ -281,7 +292,7 @@ program
           total_deals: data.deals.length,
           total_value: totalValue,
           by_stage: byStage,
-          coverage_ratio: "calculate from target",
+          coverage_ratio: coverageRatio,
         },
       });
     } catch (e) {
@@ -310,12 +321,18 @@ program
         process.exit(1);
       }
 
+      const value = parseInt(options.value);
+      if (isNaN(value) || value < 0) {
+        printJson({ error: "Value must be a non-negative number" });
+        process.exit(1);
+      }
+
       const deal: Deal = {
         prospect: options.name,
         identifier,
         pipeline: options.pipeline,
         stage: 0,
-        value_sats: parseInt(options.value),
+        value_sats: value,
         touches: 0,
         last_touch: now(),
         next_action: "Research their pain + your angle",
@@ -425,6 +442,11 @@ program
       );
 
       const revenue = parseInt(options.revenue);
+      if (isNaN(revenue) || revenue <= 0) {
+        printJson({ error: "Revenue must be a positive number" });
+        process.exit(1);
+      }
+
       const closedDeal: Deal = dealIdx >= 0
         ? { ...data.deals[dealIdx] }
         : {
