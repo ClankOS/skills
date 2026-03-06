@@ -7,7 +7,7 @@ user-invocable: false
 arguments: post | read-feed | search-tags | get-profile | set-profile | get-pubkey | relay-list | amplify-signal | amplify-text
 entry: nostr/nostr.ts
 requires: [wallet, signing]
-tags: [l1, write]
+tags: [write]
 ---
 
 # Nostr Skill

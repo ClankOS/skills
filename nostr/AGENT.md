@@ -6,72 +6,68 @@ description: Nostr protocol operations for AI agents — post kind:1 notes, read
 
 # Nostr Agent
 
-This agent handles Nostr protocol operations. It can post notes, read feeds, search by hashtags, manage profiles, and derive keys (BTC-shared path) from the BTC wallet. The same secp256k1 keypair used for BTC is used for Nostr identity.
-
-## Capabilities
-
-- Post kind:1 notes to configured relays (with optional hashtag tags)
-- Read recent notes from relays (optionally filtered by author pubkey)
-- Search notes by hashtag using NIP-12 `#t` tag filters
-- Get any user's kind:0 profile metadata
-- Set your own kind:0 profile metadata
-- Derive and display your Nostr public key (npub + hex) from BIP84 wallet
-- List configured relay URLs
-- **Amplify aibtc.news signals** to Nostr — fetch by signal ID or broadcast content directly
-
-## When to Delegate Here
-
-Delegate to this agent when:
-- The agent needs to post a note or announcement to Nostr
-- Reading or searching the Nostr network for relevant content
-- Looking up a user's profile information
-- Setting up or updating the agent's own Nostr profile
-- Deriving the agent's Nostr identity from its wallet
-- Broadcasting an aibtc.news signal to Nostr relays (use `amplify-signal` or `amplify-text`)
+This agent handles Nostr protocol operations using the BTC wallet's secp256k1 keypair as the Nostr identity. It can post kind:1 notes, read feeds, search by hashtags, manage profiles, amplify aibtc.news signals, and derive the agent's npub from the BIP84 wallet path. Read-only operations require no wallet; write operations require an unlocked wallet.
 
 ## Prerequisites
 
-1. **For read-only operations** (read-feed, search-tags, get-profile, relay-list): No prerequisites
-2. **For write operations** (post, set-profile, get-pubkey):
-   - Wallet must exist (`bun run wallet/wallet.ts status`)
-   - Wallet must be unlocked (`bun run wallet/wallet.ts unlock --password <password>`)
+- **Read operations** (read-feed, search-tags, get-profile, relay-list): No prerequisites — no wallet needed
+- **Write operations** (post, set-profile, get-pubkey, amplify-signal, amplify-text):
+  - Wallet must exist: `bun run wallet/wallet.ts status`
+  - Wallet must be unlocked: `bun run wallet/wallet.ts unlock --password <password>`
+- `nostr-tools` and `ws` packages must be installed (included in package.json)
 
-## Key Derivation
+## Decision Logic
 
-The Nostr key is derived from the BIP-84 wallet path `m/84'/0'/0'/0/0`. This gives the same secp256k1 private key used for the BTC address. The x-only (32-byte) public key becomes the Nostr pubkey (npub).
+| Goal | Subcommand |
+|------|-----------|
+| Post a note or announcement to Nostr | `post` — requires `--content`, optional `--tags` |
+| Read recent notes from relays | `read-feed` — optional `--pubkey` filter, `--limit` |
+| Search notes by hashtag | `search-tags` — requires `--tags` (NIP-12 `#t` filter, NOT NIP-50) |
+| Look up a user's profile | `get-profile` — requires `--pubkey` (hex or npub) |
+| Update agent's own Nostr profile | `set-profile` — options: `--name`, `--about`, `--picture`, `--nip05`, `--lud16` |
+| Get agent's Nostr public key (npub) | `get-pubkey` — derives from BIP84 wallet path |
+| List configured relay URLs | `relay-list` — no arguments needed |
+| Broadcast an aibtc.news signal by ID | `amplify-signal` — requires `--signal-id`, optional `--beat`, `--relays` |
+| Publish signal content directly to Nostr | `amplify-text` — requires `--content`, optional `--beat`, `--signal-id`, `--relays` |
 
-## Step-by-Step Workflow
+## Safety Checks
 
-### Step 1 — Ensure Wallet is Unlocked (for write ops)
+- **Never log or expose the private key** — `deriveNostrKeys()` returns `sk` as `Uint8Array`; it is used internally and never printed
+- **Post rate limit: max 2 posts per day** — avoid flooding relays; content should be authentic, not recycled
+- **BTC-shared keypair**: the Nostr npub and BTC taproot address share the same underlying secp256k1 key — this is intentional (single identity) but means a Nostr key compromise also affects BTC identity
+- **Relay selection**: avoid `relay.nostr.band` in sandboxed environments — use `relay.damus.io` and `nos.lol`
+- **kind:0 is a replaceable event** — `set-profile` fetches existing profile first to merge fields; partial updates will NOT delete unspecified fields
+- **amplify-signal fetches from `1btc-news-api.p-d07.workers.dev`** — verify signal content is appropriate before posting
+
+## Error Handling
+
+| Error message | Cause | Fix |
+|--------------|-------|-----|
+| `"Wallet is not unlocked. Run: bun run wallet/wallet.ts unlock"` | Write operation without unlocked wallet | Run `wallet unlock` first |
+| `"Signal has no content to amplify"` | Fetched signal has no `thesis` or `target_claim` | Check signal ID or use `amplify-text` with explicit content |
+| `"Failed to fetch signal: 404"` | Signal ID not found at aibtc.news API | Verify the signal ID exists |
+| `"query timeout"` | Relay did not respond within 20 seconds | Retry or use `--relay` to override with a faster relay |
+| `error: timeout` (in relay result) | Specific relay unreachable within 10 seconds | Normal — other relays may still succeed; check `relays` object in output |
+| `"Profile not found"` | No kind:0 event found for that pubkey | Pubkey may be new or not indexed by default relays |
+
+## Output Handling
+
+- **post / amplify-signal / amplify-text**: extract `eventId` (the Nostr event ID) and `relays` map (per-relay publish status); `"ok"` means accepted
+- **read-feed / search-tags**: returns an array of `{id, pubkey, content, created_at, tags}` sorted by `created_at` descending; use `content` for display
+- **get-profile**: returns `{pubkey, name, about, picture, nip05, lud16, ...}` — all fields from kind:0 content
+- **get-pubkey**: extract `npub` for human-readable identity and `hex` for protocol-level filtering; `derivationPath` confirms BTC-shared key path
+- **relay-list**: informational only — `relays` array shows configured default URLs
+- **set-profile**: extract `eventId` and `profile` (merged result); `relays` shows publish status per relay
+
+## Example Invocations
 
 ```bash
-bun run wallet/wallet.ts unlock --password <password>
+# Post a note with hashtags
+bun run nostr/nostr.ts post --content "Hello from an AI agent #aibtcdev" --tags "Bitcoin,sBTC,aibtcdev"
+
+# Search for recent notes tagged with sBTC
+bun run nostr/nostr.ts search-tags --tags "sBTC,Stacks" --limit 20
+
+# Amplify an aibtc.news signal directly
+bun run nostr/nostr.ts amplify-text --content "BTC holding above 200-week MA..." --beat "BTC Macro" --signal-id abc123
 ```
-
-### Step 2 — Get Your Pubkey
-
-```bash
-bun run nostr/nostr.ts get-pubkey
-```
-
-### Step 3 — Post a Note
-
-```bash
-bun run nostr/nostr.ts post --content "Hello Nostr!" --tags "Bitcoin,sBTC"
-```
-
-### Step 4 — Read Feed or Search
-
-```bash
-bun run nostr/nostr.ts read-feed --limit 10
-bun run nostr/nostr.ts search-tags --tags "sBTC" --limit 20
-```
-
-## Important Notes
-
-- **Max 2 posts per day** to avoid being flagged as spam
-- Content should be authentic agent experience, not recycled
-- Use `#t` tag filter for searching (NIP-12), not `search` (NIP-50)
-- Default relays: `wss://relay.damus.io`, `wss://nos.lol`
-- Always clean up mnemonic temp files after signing operations
-- WebSocket connections timeout after 10 seconds

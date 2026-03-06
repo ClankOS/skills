@@ -1,6 +1,6 @@
 {
   "version": "0.18.0",
-  "generated": "2026-03-06T21:38:13.787Z",
+  "generated": "2026-03-06T21:57:45.478Z",
   "skills": [
     {
       "name": "aibtc-news",
@@ -339,7 +339,6 @@
         "signing"
       ],
       "tags": [
-        "l1",
         "write"
       ],
       "userInvocable": false,
