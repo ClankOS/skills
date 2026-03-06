@@ -375,6 +375,13 @@ export class ZestProtocolService {
     }
   }
 
+  private getContracts(): NonNullable<ReturnType<typeof getZestContracts>> {
+    if (!this.contracts) {
+      throw new Error("Zest Protocol is only available on mainnet");
+    }
+    return this.contracts;
+  }
+
   /**
    * Get asset configuration from ZEST_ASSETS by symbol or contract ID
    */
@@ -462,7 +469,7 @@ export class ZestProtocolService {
 
     try {
       const result = await this.hiro.callReadOnlyFunction(
-        this.contracts!.poolBorrow,
+        this.getContracts().poolBorrow,
         "get-user-reserve-data",
         [
           principalCV(userAddress),
@@ -505,14 +512,14 @@ export class ZestProtocolService {
     this.ensureMainnet();
 
     const assetConfig = this.getAssetConfig(asset);
-    const { address, name } = parseContractId(this.contracts!.borrowHelper);
+    const { address, name } = parseContractId(this.getContracts().borrowHelper);
     const [lpAddr, lpName] = parseContractIdTuple(assetConfig.lpToken);
     const [assetAddr, assetName] = parseContractIdTuple(assetConfig.token);
-    const [incentivesAddr, incentivesName] = parseContractIdTuple(this.contracts!.incentives);
+    const [incentivesAddr, incentivesName] = parseContractIdTuple(this.getContracts().incentives);
 
     const functionArgs: ClarityValue[] = [
       contractPrincipalCV(lpAddr, lpName),                    // lp
-      principalCV(this.contracts!.poolReserve),               // pool-reserve
+      principalCV(this.getContracts().poolReserve),               // pool-reserve
       contractPrincipalCV(assetAddr, assetName),              // asset
       uintCV(amount),                                         // amount
       principalCV(onBehalfOf || account.address),             // owner
@@ -550,15 +557,15 @@ export class ZestProtocolService {
     this.ensureMainnet();
 
     const assetConfig = this.getAssetConfig(asset);
-    const { address, name } = parseContractId(this.contracts!.borrowHelper);
+    const { address, name } = parseContractId(this.getContracts().borrowHelper);
     const [assetAddr, assetName] = parseContractIdTuple(assetConfig.token);
     const [lpAddr, lpName] = parseContractIdTuple(assetConfig.lpToken);
     const [oracleAddr, oracleName] = parseContractIdTuple(assetConfig.oracle);
-    const [incentivesAddr, incentivesName] = parseContractIdTuple(this.contracts!.incentives);
+    const [incentivesAddr, incentivesName] = parseContractIdTuple(this.getContracts().incentives);
 
     const functionArgs: ClarityValue[] = [
       contractPrincipalCV(lpAddr, lpName),                    // lp
-      principalCV(this.contracts!.poolReserve),               // pool-reserve
+      principalCV(this.getContracts().poolReserve),               // pool-reserve
       contractPrincipalCV(assetAddr, assetName),              // asset
       contractPrincipalCV(oracleAddr, oracleName),            // oracle
       uintCV(amount),                                         // amount
@@ -571,7 +578,7 @@ export class ZestProtocolService {
     // Post-condition: pool reserve will send us the withdrawn asset
     // Using willSendLte because actual amount may be slightly different due to interest
     const postConditions = [
-      Pc.principal(this.contracts!.poolReserve)
+      Pc.principal(this.getContracts().poolReserve)
         .willSendLte(amount)
         .ft(assetConfig.token as `${string}.${string}`, assetName),
     ];
@@ -599,19 +606,19 @@ export class ZestProtocolService {
     this.ensureMainnet();
 
     const assetConfig = this.getAssetConfig(asset);
-    const { address, name } = parseContractId(this.contracts!.borrowHelper);
+    const { address, name } = parseContractId(this.getContracts().borrowHelper);
     const [assetAddr, assetName] = parseContractIdTuple(assetConfig.token);
     const [lpAddr, lpName] = parseContractIdTuple(assetConfig.lpToken);
     const [oracleAddr, oracleName] = parseContractIdTuple(assetConfig.oracle);
 
     const functionArgs: ClarityValue[] = [
-      principalCV(this.contracts!.poolReserve),               // pool-reserve
+      principalCV(this.getContracts().poolReserve),               // pool-reserve
       contractPrincipalCV(oracleAddr, oracleName),            // oracle
       contractPrincipalCV(assetAddr, assetName),              // asset-to-borrow
       contractPrincipalCV(lpAddr, lpName),                    // lp
       this.buildAssetsListCV(),                               // assets
       uintCV(amount),                                         // amount-to-be-borrowed
-      principalCV(this.contracts!.feesCalculator),            // fee-calculator
+      principalCV(this.getContracts().feesCalculator),            // fee-calculator
       uintCV(BigInt(0)),                                      // interest-rate-mode (0 = variable)
       principalCV(account.address),                           // owner
       noneCV(),                                               // price-feed-bytes (none for now)
@@ -619,7 +626,7 @@ export class ZestProtocolService {
 
     // Post-condition: pool reserve will send us the borrowed asset
     const postConditions = [
-      Pc.principal(this.contracts!.poolReserve)
+      Pc.principal(this.getContracts().poolReserve)
         .willSendLte(amount)
         .ft(assetConfig.token as `${string}.${string}`, assetName),
     ];
@@ -648,7 +655,7 @@ export class ZestProtocolService {
     this.ensureMainnet();
 
     const assetConfig = this.getAssetConfig(asset);
-    const { address, name } = parseContractId(this.contracts!.poolBorrow);
+    const { address, name } = parseContractId(this.getContracts().poolBorrow);
     const [assetAddr, assetName] = parseContractIdTuple(assetConfig.token);
 
     const functionArgs: ClarityValue[] = [
@@ -689,16 +696,16 @@ export class ZestProtocolService {
     this.ensureMainnet();
 
     const assetConfig = this.getAssetConfig(asset);
-    const { address, name } = parseContractId(this.contracts!.borrowHelper);
+    const { address, name } = parseContractId(this.getContracts().borrowHelper);
     const [lpAddr, lpName] = parseContractIdTuple(assetConfig.lpToken);
     const [assetAddr, assetName] = parseContractIdTuple(assetConfig.token);
     const [oracleAddr, oracleName] = parseContractIdTuple(assetConfig.oracle);
-    const [incentivesAddr, incentivesName] = parseContractIdTuple(this.contracts!.incentives);
-    const [wstxAddr, wstxName] = parseContractIdTuple(this.contracts!.wstx);
+    const [incentivesAddr, incentivesName] = parseContractIdTuple(this.getContracts().incentives);
+    const [wstxAddr, wstxName] = parseContractIdTuple(this.getContracts().wstx);
 
     const functionArgs: ClarityValue[] = [
       contractPrincipalCV(lpAddr, lpName),                    // lp
-      principalCV(this.contracts!.poolReserve),               // pool-reserve
+      principalCV(this.getContracts().poolReserve),               // pool-reserve
       contractPrincipalCV(assetAddr, assetName),              // asset
       contractPrincipalCV(oracleAddr, oracleName),            // oracle
       principalCV(account.address),                           // owner
@@ -712,9 +719,9 @@ export class ZestProtocolService {
     // Using willSendGte(0n) since we don't know the exact reward amount
     // Deny mode ensures no unexpected token transfers can occur
     const postConditions = [
-      Pc.principal(this.contracts!.poolReserve)
+      Pc.principal(this.getContracts().poolReserve)
         .willSendGte(0n)
-        .ft(this.contracts!.wstx as `${string}.${string}`, wstxName),
+        .ft(this.getContracts().wstx as `${string}.${string}`, wstxName),
     ];
 
     return callContract(account, {
