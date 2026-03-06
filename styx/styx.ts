@@ -220,14 +220,7 @@ program
           });
         }
 
-        // Add deposit output (to Styx deposit address)
-        tx.addOutputAddress(
-          prepared.depositAddress,
-          BigInt(prepared.amountInSatoshis),
-          btcNetwork
-        );
-
-        // Add OP_RETURN output if present
+        // Add OP_RETURN output FIRST (must be output 0 — Styx contract expects it there)
         // opReturnData from Styx SDK is a full script hex (starts with 6a = OP_RETURN)
         if (prepared.opReturnData) {
           const opReturnScript = hex.decode(prepared.opReturnData);
@@ -236,6 +229,13 @@ program
             amount: BigInt(0),
           });
         }
+
+        // Add deposit output (to Styx deposit address)
+        tx.addOutputAddress(
+          prepared.depositAddress,
+          BigInt(prepared.amountInSatoshis),
+          btcNetwork
+        );
 
         // Add change output if there's change
         if (prepared.changeAmount > 0) {
