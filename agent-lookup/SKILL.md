@@ -64,7 +64,7 @@ bun run agent-lookup/agent-lookup.ts lookup --name <display-name>
 
 ### stats
 
-Network-wide aggregate statistics across all registered agents.
+Network-wide aggregate statistics across all registered agents. `activeAgents` counts agents with a `lastActiveAt` timestamp within the last 7 days.
 
 ```
 bun run agent-lookup/agent-lookup.ts stats

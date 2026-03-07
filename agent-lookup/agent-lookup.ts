@@ -128,7 +128,8 @@ program
         byLevel[a.levelName] = (byLevel[a.levelName] ?? 0) + 1;
         totalCheckIns += a.checkInCount;
         totalAchievements += a.achievementCount;
-        if (a.lastActiveAt) activeCount++;
+        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        if (a.lastActiveAt && a.lastActiveAt >= cutoff) activeCount++;
       }
 
       printJson({
