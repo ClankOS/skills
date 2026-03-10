@@ -9,11 +9,153 @@
 import { Command } from "commander";
 import { NETWORK, getExplorerTxUrl } from "../src/lib/config/networks.js";
 import { getAccount, getWalletAddress } from "../src/lib/services/x402.service.js";
-import { getBitflowService } from "../src/lib/services/bitflow.service.js";
+import { getWalletManager } from "../src/lib/services/wallet-manager.js";
+import {
+  getBitflowService,
+  type HodlmmActiveBinToleranceInput,
+  type HodlmmRelativeLiquidityBinInput,
+  type HodlmmRelativeWithdrawalInput,
+  type UnifiedBitflowRouteQuote,
+} from "../src/lib/services/bitflow.service.js";
 import { resolveFee } from "../src/lib/utils/fee.js";
 import { printJson, handleError } from "../src/lib/utils/cli.js";
 
 const HIGH_IMPACT_THRESHOLD = 0.05; // 5%
+
+function parseJsonOption<T>(value: string, label: string): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    throw new Error(`${label} must be valid JSON`);
+  }
+}
+
+function normalizeRelativeLiquidityBins(rawBins: unknown): HodlmmRelativeLiquidityBinInput[] {
+  if (!Array.isArray(rawBins) || rawBins.length === 0) {
+    throw new Error("--bins must be a non-empty JSON array");
+  }
+
+  return rawBins.map((bin, index) => {
+    if (!bin || typeof bin !== "object") {
+      throw new Error(`bins[${index}] must be an object`);
+    }
+
+    const value = bin as Record<string, unknown>;
+    const activeBinOffset = value.activeBinOffset ?? value.active_bin_offset;
+    const xAmount = value.xAmount ?? value.x_amount ?? 0;
+    const yAmount = value.yAmount ?? value.y_amount ?? 0;
+
+    if (typeof activeBinOffset !== "number") {
+      throw new Error(`bins[${index}].activeBinOffset must be a number`);
+    }
+
+    return {
+      activeBinOffset,
+      xAmount: String(xAmount),
+      yAmount: String(yAmount),
+    };
+  });
+}
+
+function normalizeRelativeWithdrawalPositions(rawPositions: unknown): HodlmmRelativeWithdrawalInput[] {
+  if (!Array.isArray(rawPositions) || rawPositions.length === 0) {
+    throw new Error("--positions must be a non-empty JSON array");
+  }
+
+  return rawPositions.map((position, index) => {
+    if (!position || typeof position !== "object") {
+      throw new Error(`positions[${index}] must be an object`);
+    }
+
+    const value = position as Record<string, unknown>;
+    const activeBinOffset = value.activeBinOffset ?? value.active_bin_offset;
+    const amount = value.amount;
+    const minXAmount = value.minXAmount ?? value.min_x_amount ?? 0;
+    const minYAmount = value.minYAmount ?? value.min_y_amount ?? 0;
+
+    if (typeof activeBinOffset !== "number") {
+      throw new Error(`positions[${index}].activeBinOffset must be a number`);
+    }
+
+    if (amount === undefined || amount === null) {
+      throw new Error(`positions[${index}].amount is required`);
+    }
+
+    return {
+      activeBinOffset,
+      amount: String(amount),
+      minXAmount: String(minXAmount),
+      minYAmount: String(minYAmount),
+    };
+  });
+}
+
+function normalizeActiveBinTolerance(raw: unknown): HodlmmActiveBinToleranceInput {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("--active-bin-tolerance must be a JSON object");
+  }
+
+  const value = raw as Record<string, unknown>;
+  const expectedBinId = value.expectedBinId ?? value.expected_bin_id;
+  const maxDeviation = value.maxDeviation ?? value.max_deviation;
+
+  if (typeof expectedBinId !== "number") {
+    throw new Error("activeBinTolerance.expectedBinId must be a number");
+  }
+
+  if (maxDeviation === undefined || maxDeviation === null) {
+    throw new Error("activeBinTolerance.maxDeviation is required");
+  }
+
+  return {
+    expectedBinId,
+    maxDeviation: String(maxDeviation),
+  };
+}
+
+function summarizeUnifiedRoute(route: UnifiedBitflowRouteQuote) {
+  return {
+    source: route.source,
+    label: route.label,
+    executable: route.executable,
+    tokenPath: route.tokenPath,
+    dexPath: route.dexPath,
+    poolIds: route.poolIds,
+    poolContracts: route.poolContracts,
+    expectedAmountOut: route.amountOutHuman,
+    amountOutAtomic: route.amountOutAtomic,
+    priceImpact: route.priceImpact,
+  };
+}
+
+function summarizeQuoteOutput(quote: {
+  tokenIn: string;
+  tokenOut: string;
+  amountIn: string;
+  expectedAmountOut: string;
+  route: string[];
+}) {
+  return {
+    tokenIn: quote.tokenIn,
+    tokenOut: quote.tokenOut,
+    amountIn: quote.amountIn,
+    expectedAmountOut: quote.expectedAmountOut,
+    route: quote.route,
+  };
+}
+
+async function getWriteAccount(walletPassword?: string) {
+  if (walletPassword) {
+    const walletManager = getWalletManager();
+    const walletId = await walletManager.getActiveWalletId();
+    if (!walletId) {
+      throw new Error("No active wallet configured. Create or switch to a wallet first.");
+    }
+    return walletManager.unlock(walletId, walletPassword);
+  }
+
+  return getAccount();
+}
 
 // ---------------------------------------------------------------------------
 // Program
@@ -121,6 +263,119 @@ program
   });
 
 // ---------------------------------------------------------------------------
+// get-hodlmm-pools
+// ---------------------------------------------------------------------------
+
+program
+  .command("get-hodlmm-pools")
+  .description(
+    "Get HODLMM pools from the Bitflow BFF API. Returns DLMM pool metadata for picking pool IDs before bin operations. Mainnet-only."
+  )
+  .option("--suggested", "Filter to suggested HODLMM pools")
+  .option("--sbtc-incentives", "Filter to pools with sBTC incentives")
+  .option("--limit <number>", "Maximum pools to return", "20")
+  .action(
+    async (opts: { suggested?: boolean; sbtcIncentives?: boolean; limit: string }) => {
+      try {
+        if (NETWORK !== "mainnet") {
+          printJson({ error: "Bitflow is only available on mainnet", network: NETWORK });
+          return;
+        }
+
+        const bitflowService = getBitflowService(NETWORK);
+        const pools = await bitflowService.getHodlmmPools({
+          suggested: opts.suggested,
+          sbtcIncentives: opts.sbtcIncentives,
+          limit: Number(opts.limit),
+        });
+
+        printJson({
+          network: NETWORK,
+          poolCount: pools.length,
+          pools,
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// get-hodlmm-bins
+// ---------------------------------------------------------------------------
+
+program
+  .command("get-hodlmm-bins")
+  .description(
+    "Get all HODLMM bins for a pool from the Bitflow BFF API. Useful for selecting relative bin offsets before adding liquidity. Mainnet-only."
+  )
+  .requiredOption("--pool-id <poolId>", "HODLMM pool ID (e.g. dlmm_1)")
+  .option("--allow-fallback", "Enable on-chain fallback if indexed data is stale")
+  .action(async (opts: { poolId: string; allowFallback?: boolean }) => {
+    try {
+      if (NETWORK !== "mainnet") {
+        printJson({ error: "Bitflow is only available on mainnet", network: NETWORK });
+        return;
+      }
+
+      const bitflowService = getBitflowService(NETWORK);
+      const bins = await bitflowService.getHodlmmPoolBins(opts.poolId, opts.allowFallback);
+
+      printJson({
+        network: NETWORK,
+        bins,
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// get-hodlmm-position-bins
+// ---------------------------------------------------------------------------
+
+program
+  .command("get-hodlmm-position-bins")
+  .description(
+    "Get your HODLMM position bins for a pool from the Bitflow BFF API. Mainnet-only."
+  )
+  .requiredOption("--pool-id <poolId>", "HODLMM pool ID (e.g. dlmm_1)")
+  .option("--address <stacksAddress>", "Stacks address (uses active wallet if not specified)")
+  .option("--fresh", "Bypass cache and fetch fresh position data")
+  .option("--allow-fallback", "Enable on-chain fallback if indexed data is stale")
+  .action(
+    async (opts: {
+      poolId: string;
+      address?: string;
+      fresh?: boolean;
+      allowFallback?: boolean;
+    }) => {
+      try {
+        if (NETWORK !== "mainnet") {
+          printJson({ error: "Bitflow is only available on mainnet", network: NETWORK });
+          return;
+        }
+
+        const bitflowService = getBitflowService(NETWORK);
+        const address = opts.address || (await getWalletAddress());
+        const positions = await bitflowService.getHodlmmUserPositionBins(address, opts.poolId, {
+          fresh: opts.fresh,
+          allowFallback: opts.allowFallback,
+        });
+
+        printJson({
+          network: NETWORK,
+          address,
+          poolId: opts.poolId,
+          positions,
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
 // get-swap-targets
 // ---------------------------------------------------------------------------
 
@@ -199,8 +454,14 @@ program
 
         printJson({
           network: NETWORK,
-          quote,
+          quote: summarizeQuoteOutput(quote),
+          selectedRoute: quote.selectedRoute ? summarizeUnifiedRoute(quote.selectedRoute) : undefined,
+          bestExecutableRoute: quote.bestExecutableRoute
+            ? summarizeUnifiedRoute(quote.bestExecutableRoute)
+            : undefined,
+          rankedRoutes: quote.rankedRoutes?.map(summarizeUnifiedRoute),
           priceImpact,
+          executionWarning: quote.executionWarning,
           highImpactWarning,
         });
       } catch (error) {
@@ -227,7 +488,11 @@ program
     "--token-y <tokenId>",
     "Output token ID (e.g. 'token-sbtc', 'token-aeusdc')"
   )
-  .action(async (opts: { tokenX: string; tokenY: string }) => {
+  .option(
+    "--amount-in <decimal>",
+    "Optional amount in human-readable decimal to rank routes by expected output"
+  )
+  .action(async (opts: { tokenX: string; tokenY: string; amountIn?: string }) => {
     try {
       if (NETWORK !== "mainnet") {
         printJson({ error: "Bitflow is only available on mainnet", network: NETWORK });
@@ -235,20 +500,21 @@ program
       }
 
       const bitflowService = getBitflowService(NETWORK);
-      const routes = await bitflowService.getAllRoutes(
-        opts.tokenX,
-        opts.tokenY
-      );
+      const routes = await bitflowService.getAllRoutes(opts.tokenX, opts.tokenY, opts.amountIn ? Number(opts.amountIn) : undefined);
+      const unifiedRoutes = routes as UnifiedBitflowRouteQuote[];
 
       printJson({
         network: NETWORK,
         tokenX: opts.tokenX,
         tokenY: opts.tokenY,
-        routeCount: routes.length,
-        routes: routes.map((r) => ({
-          tokenPath: r.token_path,
-          dexPath: r.dex_path,
-        })),
+        amountIn: opts.amountIn,
+        routeCount: unifiedRoutes.length,
+        routes: unifiedRoutes.map((r) => {
+          const summary = summarizeUnifiedRoute(r);
+          if (opts.amountIn) return summary;
+          const { expectedAmountOut, amountOutAtomic, priceImpact, ...rest } = summary;
+          return rest;
+        }),
       });
     } catch (error) {
       handleError(error);
@@ -287,6 +553,10 @@ program
     "Optional fee: 'low' | 'medium' | 'high' preset or micro-STX amount. If omitted, auto-estimated."
   )
   .option(
+    "--wallet-password <password>",
+    "Optional wallet password to unlock the active managed wallet for this command"
+  )
+  .option(
     "--confirm-high-impact",
     "Set to execute swaps with price impact above 5%"
   )
@@ -297,6 +567,7 @@ program
       amountIn: string;
       slippageTolerance: string;
       fee?: string;
+      walletPassword?: string;
       confirmHighImpact?: boolean;
     }) => {
       try {
@@ -330,7 +601,7 @@ program
           return;
         }
 
-        const account = await getAccount();
+        const account = await getWriteAccount(opts.walletPassword);
         const resolvedFee = await resolveFee(opts.fee, NETWORK, "contract_call");
         const result = await bitflowService.swap(
           account,
@@ -350,8 +621,197 @@ program
             amountIn: opts.amountIn,
             slippageTolerance: slippage,
             priceImpact: impact,
+            quotedBestRoute: quote.selectedRoute ? summarizeUnifiedRoute(quote.selectedRoute) : undefined,
+            executedRoute: quote.bestExecutableRoute
+              ? summarizeUnifiedRoute(quote.bestExecutableRoute)
+              : undefined,
           },
+          executionWarning: quote.executionWarning,
           network: NETWORK,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// add-liquidity-simple
+// ---------------------------------------------------------------------------
+
+program
+  .command("add-liquidity-simple")
+  .description(
+    "Add liquidity to HODLMM bins using relative offsets from the active bin. Uses Bitflow's simple mode so the transaction is more tolerant of active-bin movement. Requires an unlocked wallet. Mainnet-only."
+  )
+  .requiredOption("--pool-id <poolId>", "HODLMM pool ID (e.g. dlmm_1)")
+  .requiredOption(
+    "--bins <json>",
+    "JSON array of bins to add, e.g. '[{\"activeBinOffset\":0,\"xAmount\":\"0\",\"yAmount\":\"100000\"},{\"activeBinOffset\":1,\"xAmount\":\"100000\",\"yAmount\":\"0\"}]'"
+  )
+  .option(
+    "--active-bin-tolerance <json>",
+    "Optional JSON object like '{\"expectedBinId\":500,\"maxDeviation\":\"2\"}'"
+  )
+  .option(
+    "--slippage-tolerance <percent>",
+    "Slippage tolerance percentage used for min DLP and liquidity fee bounds (default 1)",
+    "1"
+  )
+  .option(
+    "--pool-contract <contractId>",
+    "Override pool core contract identifier if the API response is missing it"
+  )
+  .option(
+    "--x-token-contract <contractId>",
+    "Override token X contract identifier if needed"
+  )
+  .option(
+    "--y-token-contract <contractId>",
+    "Override token Y contract identifier if needed"
+  )
+  .option("--allow-fallback", "Enable on-chain fallback when reading pool/bin metadata")
+  .option(
+    "--fee <value>",
+    "Optional STX fee: 'low' | 'medium' | 'high' preset or micro-STX amount"
+  )
+  .option(
+    "--wallet-password <password>",
+    "Optional wallet password to unlock the active managed wallet for this command"
+  )
+  .action(
+    async (opts: {
+      poolId: string;
+      bins: string;
+      activeBinTolerance?: string;
+      slippageTolerance: string;
+      poolContract?: string;
+      xTokenContract?: string;
+      yTokenContract?: string;
+      allowFallback?: boolean;
+      fee?: string;
+      walletPassword?: string;
+    }) => {
+      try {
+        if (NETWORK !== "mainnet") {
+          printJson({ error: "Bitflow is only available on mainnet", network: NETWORK });
+          return;
+        }
+
+        const bitflowService = getBitflowService(NETWORK);
+        const account = await getWriteAccount(opts.walletPassword);
+        const bins = normalizeRelativeLiquidityBins(
+          parseJsonOption<unknown>(opts.bins, "--bins")
+        );
+        const activeBinTolerance = opts.activeBinTolerance
+          ? normalizeActiveBinTolerance(
+              parseJsonOption<unknown>(opts.activeBinTolerance, "--active-bin-tolerance")
+            )
+          : undefined;
+        const resolvedFee = await resolveFee(opts.fee, NETWORK, "contract_call");
+        const result = await bitflowService.addHodlmmLiquiditySimple({
+          account,
+          poolId: opts.poolId,
+          bins,
+          activeBinTolerance,
+          slippageTolerance: Number(opts.slippageTolerance),
+          allowFallback: opts.allowFallback,
+          fee: resolvedFee,
+          poolContract: opts.poolContract,
+          xTokenContract: opts.xTokenContract,
+          yTokenContract: opts.yTokenContract,
+        });
+
+        printJson({
+          success: true,
+          network: NETWORK,
+          txid: result.txid,
+          poolId: result.poolId,
+          preparedBins: result.preparedBins,
+          explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// withdraw-liquidity-simple
+// ---------------------------------------------------------------------------
+
+program
+  .command("withdraw-liquidity-simple")
+  .description(
+    "Withdraw HODLMM liquidity using relative offsets from the current active bin. Use get-hodlmm-position-bins and get-hodlmm-bins first to calculate the current offset for your position. Requires an unlocked wallet. Mainnet-only."
+  )
+  .requiredOption("--pool-id <poolId>", "HODLMM pool ID (e.g. dlmm_6)")
+  .requiredOption(
+    "--positions <json>",
+    "JSON array of positions to withdraw, e.g. '[{\"activeBinOffset\":5,\"amount\":\"392854\",\"minXAmount\":\"1999000\",\"minYAmount\":\"0\"}]'"
+  )
+  .option(
+    "--pool-contract <contractId>",
+    "Override pool contract identifier if needed"
+  )
+  .option(
+    "--x-token-contract <contractId>",
+    "Override token X contract identifier if needed"
+  )
+  .option(
+    "--y-token-contract <contractId>",
+    "Override token Y contract identifier if needed"
+  )
+  .option("--allow-fallback", "Enable on-chain fallback when reading pool/bin metadata")
+  .option(
+    "--fee <value>",
+    "Optional STX fee: 'low' | 'medium' | 'high' preset or micro-STX amount"
+  )
+  .option(
+    "--wallet-password <password>",
+    "Optional wallet password to unlock the active managed wallet for this command"
+  )
+  .action(
+    async (opts: {
+      poolId: string;
+      positions: string;
+      poolContract?: string;
+      xTokenContract?: string;
+      yTokenContract?: string;
+      allowFallback?: boolean;
+      fee?: string;
+      walletPassword?: string;
+    }) => {
+      try {
+        if (NETWORK !== "mainnet") {
+          printJson({ error: "Bitflow is only available on mainnet", network: NETWORK });
+          return;
+        }
+
+        const bitflowService = getBitflowService(NETWORK);
+        const account = await getWriteAccount(opts.walletPassword);
+        const positions = normalizeRelativeWithdrawalPositions(
+          parseJsonOption<unknown>(opts.positions, "--positions")
+        );
+        const resolvedFee = await resolveFee(opts.fee, NETWORK, "contract_call");
+        const result = await bitflowService.withdrawHodlmmLiquiditySimple({
+          account,
+          poolId: opts.poolId,
+          positions,
+          allowFallback: opts.allowFallback,
+          fee: resolvedFee,
+          poolContract: opts.poolContract,
+          xTokenContract: opts.xTokenContract,
+          yTokenContract: opts.yTokenContract,
+        });
+
+        printJson({
+          success: true,
+          network: NETWORK,
+          txid: result.txid,
+          poolId: result.poolId,
+          preparedPositions: result.preparedPositions,
           explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
         });
       } catch (error) {
@@ -429,6 +889,10 @@ program
     "--auto-adjust",
     "Auto-adjust minimum received based on market (default true)"
   )
+  .option(
+    "--wallet-password <password>",
+    "Optional wallet password to unlock the active managed wallet for this command"
+  )
   .action(
     async (opts: {
       contractIdentifier: string;
@@ -437,6 +901,7 @@ program
       actionAmount: string;
       minReceivedAmount?: string;
       autoAdjust?: boolean;
+      walletPassword?: string;
     }) => {
       try {
         if (NETWORK !== "mainnet") {
@@ -452,7 +917,7 @@ program
         }
 
         const bitflowService = getBitflowService(NETWORK);
-        const address = await getWalletAddress();
+        const address = (await getWriteAccount(opts.walletPassword)).address;
         const result = await bitflowService.createKeeperOrder({
           contractIdentifier: opts.contractIdentifier,
           stacksAddress: address,

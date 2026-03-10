@@ -1,10 +1,10 @@
 ---
 name: bitflow
-description: Bitflow DEX on Stacks — token swaps with aggregated liquidity, market ticker data, swap routing, price impact analysis, and Keeper automation for scheduled orders. All operations are mainnet-only. No API key required (500 req/min public rate limit). Write operations require an unlocked wallet.
+description: Bitflow DEX on Stacks — unified route ranking across SDK routes and HODLMM quotes, token swaps, market ticker data, HODLMM bin inspection and liquidity management, price impact analysis, and Keeper automation for scheduled orders. All operations are mainnet-only. No API key required for public routes during beta. Write operations require an unlocked wallet.
 author: whoabuddy
 author_agent: Trustless Indra
 user-invocable: false
-arguments: get-ticker | get-tokens | get-swap-targets | get-quote | get-routes | swap | get-keeper-contract | create-order | get-order | cancel-order | get-keeper-user
+arguments: get-ticker | get-tokens | get-hodlmm-pools | get-hodlmm-bins | get-hodlmm-position-bins | get-swap-targets | get-quote | get-routes | swap | add-liquidity-simple | withdraw-liquidity-simple | get-keeper-contract | create-order | get-order | cancel-order | get-keeper-user
 entry: bitflow/bitflow.ts
 requires: [wallet]
 tags: [l2, defi, write, mainnet-only, requires-funds]
@@ -16,13 +16,14 @@ Provides DEX operations on the Bitflow aggregated liquidity protocol:
 
 - **Market Data** — Ticker prices, volumes, and liquidity for all trading pairs via public API.
 - **Token Discovery** — List available swap tokens, find swap targets for a given token, discover multi-hop routes.
-- **Swap Quotes** — Get expected output amounts with price impact analysis (XYK constant-product formula).
-- **Token Swaps** — Execute swaps with slippage protection and high-impact safety gates.
+- **Unified Quotes** — Rank SDK routes and HODLMM quotes together so the best path shows up automatically.
+- **Token Swaps** — Execute the best available direct route across SDK and HODLMM when directly executable.
+- **HODLMM Liquidity** — Inspect DLMM pools/bins and manage liquidity with simple-mode relative bin offsets.
 - **Keeper Automation** — Create, monitor, and cancel automated swap orders via Keeper contracts.
 
 All Bitflow operations are **mainnet-only**. No API key is required — the Bitflow SDK works with public endpoints at 500 requests/minute per IP. For higher rate limits, contact help@bitflow.finance.
 
-Write operations (swap, create-order) require an unlocked wallet (use `bun run wallet/wallet.ts unlock` first).
+Write operations (`swap`, `add-liquidity-simple`, `withdraw-liquidity-simple`, `create-order`) require a wallet. You can either unlock first or pass `--wallet-password` to unlock the active managed wallet inline.
 
 ## Usage
 
@@ -113,9 +114,33 @@ Output:
 }
 ```
 
+### get-hodlmm-pools
+
+List HODLMM (DLMM) pools from the Bitflow BFF API so you can pick a `pool_id` for bin operations.
+
+```
+bun run bitflow/bitflow.ts get-hodlmm-pools [--suggested] [--sbtc-incentives] [--limit <number>]
+```
+
+### get-hodlmm-bins
+
+Fetch all bins for a HODLMM pool, including reserves, liquidity, and the active bin id.
+
+```
+bun run bitflow/bitflow.ts get-hodlmm-bins --pool-id <poolId> [--allow-fallback]
+```
+
+### get-hodlmm-position-bins
+
+Fetch the active wallet's position bins for a HODLMM pool.
+
+```
+bun run bitflow/bitflow.ts get-hodlmm-position-bins --pool-id <poolId> [--address <stacksAddress>] [--fresh] [--allow-fallback]
+```
+
 ### get-quote
 
-Get a swap quote from Bitflow DEX. Returns expected output amount, best route, and price impact analysis.
+Get a unified swap quote from Bitflow. Ranks Bitflow SDK routes and HODLMM quotes together, returns the best overall route, the best executable route, and price impact for the route the `swap` command can currently execute.
 
 ```
 bun run bitflow/bitflow.ts get-quote --token-x <tokenId> --token-y <tokenId> --amount-in <decimal>
@@ -137,6 +162,18 @@ Output:
     "expectedAmountOut": "0.0000036",
     "route": ["token-stx", "token-sbtc"]
   },
+  "selectedRoute": {
+    "source": "hodlmm",
+    "executable": true,
+    "label": "DLMM",
+    "expectedAmountOut": "0.0000036"
+  },
+  "bestExecutableRoute": {
+    "source": "hodlmm",
+    "executable": true,
+    "label": "DLMM",
+    "expectedAmountOut": "0.0000036"
+  },
   "priceImpact": {
     "combinedImpact": 0.0023,
     "combinedImpactPct": "0.23%",
@@ -149,15 +186,16 @@ Output:
 
 ### get-routes
 
-Get all possible swap routes between two tokens, including multi-hop routes through intermediate tokens.
+Get all possible swap routes between two tokens. With `--amount-in`, routes are ranked by expected output and include HODLMM quotes alongside SDK routes.
 
 ```
-bun run bitflow/bitflow.ts get-routes --token-x <tokenId> --token-y <tokenId>
+bun run bitflow/bitflow.ts get-routes --token-x <tokenId> --token-y <tokenId> [--amount-in <decimal>]
 ```
 
 Options:
 - `--token-x` (required) — Input token ID
 - `--token-y` (required) — Output token ID
+- `--amount-in` (optional) — When provided, ranks routes by expected output for that trade size
 
 Output:
 ```json
@@ -168,8 +206,10 @@ Output:
   "routeCount": 3,
   "routes": [
     {
+      "source": "sdk",
+      "executable": true,
       "tokenPath": ["token-stx", "token-sbtc"],
-      "dexPath": ["xyk-pool-v1"]
+      "dexPath": ["BITFLOW_XYK_XY_2"]
     }
   ]
 }
@@ -177,7 +217,7 @@ Output:
 
 ### swap
 
-Execute a token swap on Bitflow DEX. Automatically finds the best route across all pools. Includes a high-impact safety gate — swaps with >5% price impact require `--confirm-high-impact`. Requires an unlocked wallet.
+Execute a token swap on Bitflow DEX. Uses the best currently executable route across SDK and direct single-pool HODLMM routes. Multi-hop HODLMM routes still show up in quotes but remain quote-only. Includes a high-impact safety gate — swaps with >5% price impact require `--confirm-high-impact`. Requires an unlocked wallet.
 
 ```
 bun run bitflow/bitflow.ts swap \
@@ -191,6 +231,7 @@ Options:
 - `--amount-in` (required) — Amount of input token in human-readable decimal (e.g. `0.00015` for 15,000 sats sBTC, `21.0` for 21 STX). The SDK auto-scales by `10^decimals` internally.
 - `--slippage-tolerance` (optional) — Slippage tolerance as decimal (default 0.01 = 1%)
 - `--fee` (optional) — Fee: `low` | `medium` | `high` preset or micro-STX amount. If omitted, auto-estimated.
+- `--wallet-password` (optional) — Unlock the active managed wallet inline for this command
 - `--confirm-high-impact` (optional) — Required to execute swaps with price impact above 5%
 
 Output:
@@ -203,7 +244,12 @@ Output:
     "tokenOut": "token-sbtc",
     "amountIn": "1.0",
     "slippageTolerance": 0.01,
-    "priceImpact": { "combinedImpactPct": "0.23%", "severity": "low" }
+    "priceImpact": { "combinedImpactPct": "0.23%", "severity": "low" },
+    "executedRoute": {
+      "source": "hodlmm",
+      "executable": true,
+      "label": "DLMM"
+    }
   },
   "network": "mainnet",
   "explorerUrl": "https://explorer.hiro.so/txid/abc123...?chain=mainnet"
@@ -230,6 +276,40 @@ Output:
   "status": "active"
 }
 ```
+
+### add-liquidity-simple
+
+Add liquidity to HODLMM bins using simple mode. You provide bin offsets relative to the current active bin.
+
+```
+bun run bitflow/bitflow.ts add-liquidity-simple \
+  --pool-id <poolId> \
+  --bins '[{"activeBinOffset":0,"xAmount":"0","yAmount":"100000"}]' \
+  [--active-bin-tolerance '{"expectedBinId":500,"maxDeviation":"2"}'] \
+  [--slippage-tolerance <percent>] [--fee <value>] [--wallet-password <password>]
+```
+
+Notes:
+- Use `get-hodlmm-bins` first so you know where the active bin is.
+- Bins below the active bin should usually get only `yAmount`.
+- Bins above the active bin should usually get only `xAmount`.
+- The active bin can receive one or both token amounts.
+
+### withdraw-liquidity-simple
+
+Withdraw HODLMM liquidity using offsets relative to the current active bin.
+
+```
+bun run bitflow/bitflow.ts withdraw-liquidity-simple \
+  --pool-id <poolId> \
+  --positions '[{"activeBinOffset":5,"amount":"392854","minXAmount":"1999000","minYAmount":"0"}]' \
+  [--fee <value>] [--wallet-password <password>]
+```
+
+Notes:
+- Use both `get-hodlmm-position-bins` and `get-hodlmm-bins` before withdrawing.
+- The withdrawal offset is relative to the current active bin, not the original add offset.
+- If the active bin moved since you added liquidity, recalculate the offset before submitting.
 
 ### create-order
 
