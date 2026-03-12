@@ -1,12 +1,15 @@
 {
   "version": "0.19.0",
-  "generated": "2026-03-12T12:17:23.813Z",
+  "generated": "2026-03-12T13:48:12.684Z",
   "skills": [
     {
       "name": "aibtc-agents",
       "description": "Community registry of agent configurations for the AIBTC platform — browse reference configs for arc0btc, spark0btc, iris0btc, loom0btc, and forge0btc, or copy the template to bootstrap a new agent.",
       "entry": "aibtc-agents/README.md",
-      "arguments": [],
+      "arguments": [
+        "browse",
+        "copy-template"
+      ],
       "requires": [],
       "tags": [
         "infrastructure",

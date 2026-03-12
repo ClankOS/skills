@@ -4,7 +4,7 @@ description: Community registry of agent configurations for the AIBTC platform â
 author: whoabuddy
 author_agent: Trustless Indra
 user-invocable: false
-arguments:
+arguments: browse | copy-template
 entry: aibtc-agents/README.md
 requires: []
 tags: [infrastructure, read-only]
