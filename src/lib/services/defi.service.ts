@@ -453,38 +453,53 @@ export class ZestProtocolService {
   }
 
   /**
-   * Get user's reserve/position data for an asset
+   * Get user's position for an asset.
+   *
+   * Supply is read from the LP token contract's get-balance (e.g. zsbtc-v2-0),
+   * not from get-user-reserve-data which only holds borrow-side fields.
+   * This matches the fix confirmed in aibtcdev/aibtc-mcp-server v1.33.3.
    */
   async getUserPosition(
     asset: string,
     userAddress: string
   ): Promise<ZestUserPosition | null> {
     try {
-      const result = await this.hiro.callReadOnlyFunction(
+      const assetConfig = this.getAssetConfig(asset);
+
+      // Supply: read LP token balance
+      const lpBalanceResult = await this.hiro.callReadOnlyFunction(
+        assetConfig.lpToken,
+        "get-balance",
+        [principalCV(userAddress)],
+        userAddress
+      );
+
+      // Borrow: read from pool-borrow reserve data
+      const reserveResult = await this.hiro.callReadOnlyFunction(
         this.getContracts().poolBorrow,
         "get-user-reserve-data",
         [
           principalCV(userAddress),
-          contractPrincipalCV(...parseContractIdTuple(asset)),
+          contractPrincipalCV(...parseContractIdTuple(assetConfig.token)),
         ],
         userAddress
       );
 
-      if (!result.okay || !result.result) {
-        return null;
+      let supplied = "0";
+      if (lpBalanceResult.okay && lpBalanceResult.result) {
+        const decoded = cvToJSON(hexToCV(lpBalanceResult.result));
+        supplied = decoded?.value?.value ?? decoded?.value ?? "0";
       }
 
-      const decoded = cvToJSON(hexToCV(result.result));
-
-      if (decoded && typeof decoded === "object") {
-        return {
-          asset,
-          supplied: decoded["current-a-token-balance"]?.value || "0",
-          borrowed: decoded["current-variable-debt"]?.value || "0",
-        };
+      let borrowed = "0";
+      if (reserveResult.okay && reserveResult.result) {
+        const decoded = cvToJSON(hexToCV(reserveResult.result));
+        if (decoded && typeof decoded === "object") {
+          borrowed = decoded["principal-borrow-balance"]?.value || "0";
+        }
       }
 
-      return null;
+      return { asset, supplied, borrowed };
     } catch {
       return null;
     }
