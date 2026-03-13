@@ -35,6 +35,10 @@ const SkillFrontmatterSchema = z.object({
   tags: z
     .string()
     .regex(/^\[.*\]$/, "tags must be a bracket-list like [l2, read-only]"),
+  "mcp-tools": z
+    .string()
+    .regex(/^\[.*\]$/, "mcp-tools must be a bracket-list")
+    .optional(),
 });
 
 // Zod schema for AGENT.md frontmatter (raw string values as parsed from YAML)

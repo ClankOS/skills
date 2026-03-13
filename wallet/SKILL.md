@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: create | import | unlock | lock | list | switch | delete | export | rotate-password | set-timeout | status | info | stx-balance
 entry: wallet/wallet.ts
+mcp-tools: [wallet_create, wallet_import, wallet_unlock, wallet_lock, wallet_list, wallet_switch, wallet_delete, wallet_export, wallet_rotate_password, wallet_set_timeout, wallet_status, get_wallet_info]
 requires: []
 tags: [infrastructure, sensitive]
 ---

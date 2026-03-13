@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: get-balance | transfer | get-info | list-user-tokens | get-holders
 entry: tokens/tokens.ts
+mcp-tools: [get_token_balance, transfer_token, get_token_info, list_user_tokens, get_token_holders]
 requires: [wallet]
 tags: [l2, write]
 ---

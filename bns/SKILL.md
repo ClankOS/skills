@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: lookup | reverse-lookup | get-info | check-availability | get-price | list-user-domains | claim-fast | preorder | register
 entry: bns/bns.ts
+mcp-tools: [lookup_bns_name, reverse_bns_lookup, get_bns_info, check_bns_availability, get_bns_price, list_user_domains, claim_bns_name_fast, preorder_bns_name, register_bns_name]
 requires: [wallet]
 tags: [l2, write, requires-funds]
 ---

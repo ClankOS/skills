@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: get-pox-info | get-stacking-status | stack-stx | extend-stacking
 entry: stacking/stacking.ts
+mcp-tools: [get_pox_info, get_stacking_status, stack_stx, extend_stacking]
 requires: [wallet]
 tags: [l2, write, requires-funds]
 ---

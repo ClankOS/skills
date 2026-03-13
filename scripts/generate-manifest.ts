@@ -12,6 +12,7 @@ interface SkillEntry {
   requires: string[];
   tags: string[];
   userInvocable: boolean;
+  mcpTools?: string[];
 }
 
 interface Manifest {
@@ -126,6 +127,12 @@ function parseFrontmatter(content: string, skillName: string): SkillEntry {
 
   if (author) skill.author = author;
   if (authorAgent) skill.authorAgent = authorAgent;
+
+  // Parse optional mcp-tools field (bracket-list of MCP tool names)
+  const rawMcpTools = fields["mcp-tools"]?.trim();
+  if (rawMcpTools) {
+    skill.mcpTools = parseBracketList(rawMcpTools);
+  }
 
   return skill;
 }

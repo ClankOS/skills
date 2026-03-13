@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: alex-get-swap-quote | alex-swap | alex-get-pool-info | alex-list-pools | zest-list-assets | zest-get-position | zest-supply | zest-withdraw | zest-borrow | zest-repay | zest-claim-rewards
 entry: defi/defi.ts
+mcp-tools: [alex_get_swap_quote, alex_swap, alex_get_pool_info, alex_list_pools, zest_list_assets, zest_get_position, zest_supply, zest_withdraw, zest_borrow, zest_repay]
 requires: [wallet]
 tags: [l2, defi, write, mainnet-only, requires-funds]
 ---

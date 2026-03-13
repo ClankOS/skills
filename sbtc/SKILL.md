@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: get-balance | transfer | get-deposit-info | get-peg-info | deposit | deposit-status
 entry: sbtc/sbtc.ts
+mcp-tools: [sbtc_get_balance, sbtc_transfer, sbtc_get_deposit_info, sbtc_get_peg_info, sbtc_deposit, sbtc_deposit_status]
 requires: [wallet]
 tags: [l2, write, requires-funds]
 ---

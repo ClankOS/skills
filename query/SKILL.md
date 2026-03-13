@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: get-stx-fees | get-account-info | get-account-transactions | get-block-info | get-mempool-info | get-contract-info | get-contract-events | get-network-status | call-read-only
 entry: query/query.ts
+mcp-tools: [get_stx_fees, get_account_info, get_account_transactions, get_block_info, get_mempool_info, get_contract_info, get_contract_events, get_network_status, call_read_only_function]
 requires: []
 tags: [l2, read-only]
 ---

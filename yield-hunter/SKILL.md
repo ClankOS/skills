@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: start | stop | status | configure
 entry: yield-hunter/yield-hunter.ts
+mcp-tools: [yield_hunter_start, yield_hunter_stop, yield_hunter_status, yield_hunter_configure]
 requires: [wallet]
 tags: [l2, defi, write, mainnet-only, requires-funds]
 ---

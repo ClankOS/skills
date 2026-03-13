@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: get-holdings | get-metadata | transfer | get-owner | get-collection-info | get-history
 entry: nft/nft.ts
+mcp-tools: [get_nft_holdings, get_nft_metadata, transfer_nft, get_nft_owner, get_collection_info, get_nft_history]
 requires: [wallet]
 tags: [l2, write]
 ---

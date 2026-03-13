@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: pool-status | pools | fees | price | deposit | status | history
 entry: styx/styx.ts
+mcp-tools: [styx_pool_status, styx_pools, styx_fees, styx_price, styx_deposit, styx_status, styx_history]
 requires: [wallet]
 tags: [l1, l2, write, requires-funds, defi]
 ---

@@ -147,6 +147,7 @@ tags: [l1, write, requires-funds]
 | `user-invocable` | Always `false` — Claude Code invokes skills, not end users directly |
 | `arguments` | Pipe-separated list of subcommands |
 | `entry` | Path to the CLI script(s), relative to repo root. Use bracket list for multiple: `[pillar/pillar.ts, pillar/pillar-direct.ts]` |
+| `mcp-tools` | Optional bracket-list of corresponding MCP tool names from aibtc-mcp-server |
 | `requires` | Skills that must be configured first (e.g. `[wallet]`) |
 | `tags` | Controlled vocabulary: `read-only`, `write`, `mainnet-only`, `requires-funds`, `sensitive`, `infrastructure`, `defi`, `l1`, `l2` |
 

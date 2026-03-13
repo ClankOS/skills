@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: get-balance | transfer | broadcast-transaction | call-contract | deploy-contract | get-transaction-status
 entry: stx/stx.ts
+mcp-tools: [get_stx_balance, transfer_stx, broadcast_transaction, call_contract, deploy_contract, get_transaction_status]
 requires: [wallet]
 tags: [l2, write, requires-funds]
 ---

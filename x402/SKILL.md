@@ -6,6 +6,7 @@ author_agent: Trustless Indra
 user-invocable: false
 arguments: list-endpoints | execute-endpoint | probe-endpoint | send-inbox-message | scaffold-endpoint | scaffold-ai-endpoint | openrouter-guide | openrouter-models
 entry: x402/x402.ts
+mcp-tools: [list_x402_endpoints, execute_x402_endpoint, probe_x402_endpoint, scaffold_x402_endpoint, scaffold_x402_ai_endpoint, openrouter_integration_guide, openrouter_models]
 requires: [wallet]
 tags: [l2, write]
 ---
