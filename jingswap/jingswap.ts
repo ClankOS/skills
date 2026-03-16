@@ -14,7 +14,7 @@ import {
   PostConditionMode,
   Pc,
 } from "@stacks/transactions";
-import { getAccount, getWalletAddress } from "../src/lib/services/x402.service.js";
+import { getAccount } from "../src/lib/services/x402.service.js";
 import { NETWORK, getExplorerTxUrl } from "../src/lib/config/networks.js";
 import { callContract } from "../src/lib/transactions/builder.js";
 import { printJson, handleError } from "../src/lib/utils/cli.js";
@@ -227,7 +227,9 @@ program
     try {
       await assertDepositPhase();
       const account = await getAccount();
-      const microStx = BigInt(Math.floor(parseFloat(opts.amount) * 1_000_000));
+      const [whole = "0", frac = ""] = opts.amount.split(".");
+      const paddedFrac = frac.padEnd(6, "0").slice(0, 6);
+      const microStx = BigInt(whole) * 1_000_000n + BigInt(paddedFrac);
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
@@ -358,6 +360,10 @@ program
     try {
       const data = await jingswapGet("/api/auction/cycle-state");
       if (data.phase !== 0) throw new Error("Not in deposit phase");
+      if (data.blocksElapsed < 150)
+        throw new Error(`Close too early — need 150 blocks elapsed, have ${data.blocksElapsed}`);
+      if (data.totalStx < 1_000_000 || data.totalSbtc < 1_000)
+        throw new Error(`Minimums not met — STX: ${data.totalStx} / 1000000, sBTC: ${data.totalSbtc} / 1000`);
       const account = await getAccount();
 
       const result = await callContract(account, {
