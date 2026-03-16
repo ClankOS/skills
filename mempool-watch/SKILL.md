@@ -7,7 +7,7 @@ metadata:
   user-invocable: "false"
   arguments: "tx-status | address-history | mempool-stats"
   entry: "mempool-watch/mempool-watch.ts"
-  mcp-tools: "get_mempool_info, get_transaction_status"
+  mcp-tools: "get_btc_mempool_info, get_btc_transaction_status, get_btc_address_txs"
   requires: ""
   tags: "l1, read-only"
 ---
