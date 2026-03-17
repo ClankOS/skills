@@ -1,6 +1,6 @@
 ---
 name: jingswap
-description: "Jingswap blind batch auction for STX/sBTC — query cycle state, prices, depositors, settlements, history, user activity. Deposit/cancel STX and sBTC, close deposits, settle with fresh Pyth oracles, cancel failed cycles."
+description: "Jingswap blind batch auction — supports sbtc-stx and sbtc-usdcx markets. Query cycle state, prices, depositors, settlements, history, user activity. Deposit/cancel quote token and sBTC, close deposits, settle with fresh Pyth oracles, cancel failed cycles."
 metadata:
   author: "Rapha-btc"
   author-agent: "Claude Code"
@@ -14,15 +14,22 @@ metadata:
 
 # Jingswap Skill
 
-Blind batch auction for swapping STX and sBTC on Stacks. Each auction cycle has three phases: deposit, buffer, settle. Anyone can participate by depositing on either side, and anyone can trigger close/settle/cancel transitions.
+Blind batch auction for swapping sBTC against a quote token on Stacks. Two markets are available:
 
-Contract: `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-stx-jingswap`
+| Market | Contract | Quote Token |
+|--------|----------|-------------|
+| `sbtc-stx` (default) | `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-stx-jingswap` | STX |
+| `sbtc-usdcx` | `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-usdcx-jingswap` | USDCx |
+
+Each auction cycle has three phases: deposit, buffer, settle. Anyone can participate by depositing on either side, and anyone can trigger close/settle/cancel transitions.
 
 ## Usage
 
 ```
-bun run jingswap/jingswap.ts <subcommand> [options]
+bun run jingswap/jingswap.ts <subcommand> [--market <pair>] [options]
 ```
+
+All commands accept `--market sbtc-stx` (default) or `--market sbtc-usdcx`.
 
 ## Subcommands
 
@@ -31,15 +38,15 @@ bun run jingswap/jingswap.ts <subcommand> [options]
 Get current auction cycle state (phase, blocks elapsed, totals, minimums).
 
 ```
-bun run jingswap/jingswap.ts cycle-state
+bun run jingswap/jingswap.ts cycle-state --market sbtc-usdcx
 ```
 
 ### depositors
 
-Get STX and sBTC depositors for a cycle.
+Get quote-token and sBTC depositors for a cycle.
 
 ```
-bun run jingswap/jingswap.ts depositors --cycle <number>
+bun run jingswap/jingswap.ts depositors --cycle <number> --market sbtc-stx
 ```
 
 ### user-deposit
@@ -63,7 +70,7 @@ bun run jingswap/jingswap.ts settlement --cycle <number>
 Get full history of all auction cycles.
 
 ```
-bun run jingswap/jingswap.ts cycles-history
+bun run jingswap/jingswap.ts cycles-history --market sbtc-usdcx
 ```
 
 ### user-activity
@@ -71,7 +78,7 @@ bun run jingswap/jingswap.ts cycles-history
 Get a user's auction activity (deposits, cancellations, fills, rollovers).
 
 ```
-bun run jingswap/jingswap.ts user-activity --address <stx_address>
+bun run jingswap/jingswap.ts user-activity --address <stx_address> --market sbtc-usdcx
 ```
 
 ### prices
@@ -84,10 +91,10 @@ bun run jingswap/jingswap.ts prices
 
 ### deposit-stx
 
-Deposit STX into the current auction cycle. Deposit phase only.
+Deposit quote token (STX or USDCx depending on market) into the current auction cycle. Deposit phase only.
 
 ```
-bun run jingswap/jingswap.ts deposit-stx --amount <stx_amount>
+bun run jingswap/jingswap.ts deposit-stx --amount 10 --market sbtc-usdcx
 ```
 
 ### deposit-sbtc
@@ -95,15 +102,15 @@ bun run jingswap/jingswap.ts deposit-stx --amount <stx_amount>
 Deposit sBTC (in satoshis) into the current auction cycle. Deposit phase only.
 
 ```
-bun run jingswap/jingswap.ts deposit-sbtc --amount <sats>
+bun run jingswap/jingswap.ts deposit-sbtc --amount 10000 --market sbtc-usdcx
 ```
 
 ### cancel-stx
 
-Cancel your STX deposit and get a refund. Deposit phase only.
+Cancel your quote-token deposit and get a refund. Deposit phase only.
 
 ```
-bun run jingswap/jingswap.ts cancel-stx
+bun run jingswap/jingswap.ts cancel-stx --market sbtc-usdcx
 ```
 
 ### cancel-sbtc
@@ -116,10 +123,10 @@ bun run jingswap/jingswap.ts cancel-sbtc
 
 ### close-deposits
 
-Close the deposit phase (requires min 150 blocks elapsed, min 1 STX and 1,000 sats deposited).
+Close the deposit phase (requires min 150 blocks elapsed, both sides above minimum).
 
 ```
-bun run jingswap/jingswap.ts close-deposits
+bun run jingswap/jingswap.ts close-deposits --market sbtc-usdcx
 ```
 
 ### settle
@@ -135,7 +142,7 @@ bun run jingswap/jingswap.ts settle
 Settle with fresh Pyth VAAs (~2 uSTX). Recommended settlement method.
 
 ```
-bun run jingswap/jingswap.ts settle-with-refresh
+bun run jingswap/jingswap.ts settle-with-refresh --market sbtc-usdcx
 ```
 
 ### cancel-cycle
@@ -153,4 +160,5 @@ bun run jingswap/jingswap.ts cancel-cycle
 - Buffer phase: 30 blocks (~1 min) after close
 - Cancel threshold: 530 blocks (~17.5 min) from close
 - `distribute` events show swap proceeds + unswapped remainder (rolled to next cycle, not refunded)
-- Post conditions: deposits use Deny mode; cancel/settle/cancel-cycle use Allow mode (nothing leaves caller's wallet)
+- Post conditions: deposits use Deny mode; cancel/settle/cancel-cycle use Allow mode
+- USDCx is a stablecoin (~$1) — `SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx`, asset `usdcx-token`, 6 decimals

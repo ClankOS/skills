@@ -30,9 +30,53 @@ const JINGSWAP_API_KEY =
   "jc_b058d7f2e0976bd4ee34be3e5c7ba7ebe45289c55d3f5e45f666ebc14b7ebfd0";
 
 const CONTRACT_ADDRESS = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
-const CONTRACT_NAME = "sbtc-stx-jingswap";
 const SBTC_CONTRACT =
   "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token" as `${string}.${string}`;
+
+interface MarketConfig {
+  contractName: string;
+  tokenBSymbol: string;
+  tokenBDecimals: number;
+  tokenBContract?: string;
+  tokenBAsset?: string;
+  depositFn: string;
+  cancelFn: string;
+  priceUnit: string;
+}
+
+const MARKETS: Record<string, MarketConfig> = {
+  "sbtc-stx": {
+    contractName: "sbtc-stx-jingswap",
+    tokenBSymbol: "STX",
+    tokenBDecimals: 6,
+    depositFn: "deposit-stx",
+    cancelFn: "cancel-stx-deposit",
+    priceUnit: "STX/BTC",
+  },
+  "sbtc-usdcx": {
+    contractName: "sbtc-usdcx-jingswap",
+    tokenBSymbol: "USDCx",
+    tokenBDecimals: 6,
+    tokenBContract: "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx",
+    tokenBAsset: "usdcx-token",
+    depositFn: "deposit-usdcx",
+    cancelFn: "cancel-usdcx-deposit",
+    priceUnit: "USDCx/BTC",
+  },
+};
+
+const DEFAULT_MARKET = "sbtc-stx";
+
+function getMarket(market?: string): MarketConfig {
+  const key = market || DEFAULT_MARKET;
+  const config = MARKETS[key];
+  if (!config) throw new Error(`Unknown market "${key}". Available: ${Object.keys(MARKETS).join(", ")}`);
+  return config;
+}
+
+function apiContractParam(market: MarketConfig): string {
+  return market.contractName === "sbtc-stx-jingswap" ? "" : `?contract=${market.contractName}`;
+}
 
 const PYTH_CONTRACTS = {
   storage: { address: "SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y", name: "pyth-storage-v4" },
@@ -55,8 +99,8 @@ async function jingswapGet(path: string): Promise<any> {
   return json.data;
 }
 
-async function assertDepositPhase(): Promise<any> {
-  const data = await jingswapGet("/api/auction/cycle-state");
+async function assertDepositPhase(market: MarketConfig): Promise<any> {
+  const data = await jingswapGet(`/api/auction/cycle-state${apiContractParam(market)}`);
   if (data.phase !== 0) {
     const phases = ["deposit", "buffer", "settle"];
     throw new Error(
@@ -66,8 +110,8 @@ async function assertDepositPhase(): Promise<any> {
   return data;
 }
 
-async function assertNotDepositPhase(): Promise<any> {
-  const data = await jingswapGet("/api/auction/cycle-state");
+async function assertNotDepositPhase(market: MarketConfig): Promise<any> {
+  const data = await jingswapGet(`/api/auction/cycle-state${apiContractParam(market)}`);
   if (data.phase === 0) {
     throw new Error("Cannot settle/cancel-cycle — auction is still in deposit phase");
   }
@@ -95,9 +139,11 @@ program
 program
   .command("cycle-state")
   .description("Get current auction cycle state (phase, blocks, totals, minimums)")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      const data = await jingswapGet("/api/auction/cycle-state");
+      const m = getMarket(opts.market);
+      const data = await jingswapGet(`/api/auction/cycle-state${apiContractParam(m)}`);
       printJson({
         ...data,
         _hint: {
@@ -112,11 +158,13 @@ program
 
 program
   .command("depositors")
-  .description("Get STX and sBTC depositors for a cycle")
+  .description("Get quote-token and sBTC depositors for a cycle")
   .requiredOption("--cycle <number>", "Cycle number")
-  .action(async (opts: { cycle: string }) => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { cycle: string; market?: string }) => {
     try {
-      const data = await jingswapGet(`/api/auction/depositors/${opts.cycle}`);
+      const m = getMarket(opts.market);
+      const data = await jingswapGet(`/api/auction/depositors/${opts.cycle}${apiContractParam(m)}`);
       printJson(data);
     } catch (error) {
       handleError(error);
@@ -128,10 +176,12 @@ program
   .description("Get a user's deposit amounts for a cycle")
   .requiredOption("--cycle <number>", "Cycle number")
   .requiredOption("--address <stx_address>", "Stacks address")
-  .action(async (opts: { cycle: string; address: string }) => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { cycle: string; address: string; market?: string }) => {
     try {
+      const m = getMarket(opts.market);
       const data = await jingswapGet(
-        `/api/auction/deposit/${opts.cycle}/${opts.address}`
+        `/api/auction/deposit/${opts.cycle}/${opts.address}${apiContractParam(m)}`
       );
       printJson(data);
     } catch (error) {
@@ -143,9 +193,11 @@ program
   .command("settlement")
   .description("Get settlement details for a completed cycle")
   .requiredOption("--cycle <number>", "Cycle number")
-  .action(async (opts: { cycle: string }) => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { cycle: string; market?: string }) => {
     try {
-      const data = await jingswapGet(`/api/auction/settlement/${opts.cycle}`);
+      const m = getMarket(opts.market);
+      const data = await jingswapGet(`/api/auction/settlement/${opts.cycle}${apiContractParam(m)}`);
       printJson(data);
     } catch (error) {
       handleError(error);
@@ -155,9 +207,11 @@ program
 program
   .command("cycles-history")
   .description("Get full history of all auction cycles")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      const data = await jingswapGet("/api/auction/cycles-history");
+      const m = getMarket(opts.market);
+      const data = await jingswapGet(`/api/auction/cycles-history${apiContractParam(m)}`);
       printJson(data);
     } catch (error) {
       handleError(error);
@@ -168,9 +222,11 @@ program
   .command("user-activity")
   .description("Get a user's auction activity (deposits, cancellations, fills)")
   .requiredOption("--address <stx_address>", "Stacks address")
-  .action(async (opts: { address: string }) => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { address: string; market?: string }) => {
     try {
-      const data = await jingswapGet(`/api/auction/activity/${opts.address}`);
+      const m = getMarket(opts.market);
+      const data = await jingswapGet(`/api/auction/activity/${opts.address}${apiContractParam(m)}`);
       printJson({
         ...data,
         _hint: {
@@ -188,11 +244,13 @@ program
 program
   .command("prices")
   .description("Get oracle and DEX prices (Pyth, XYK, DLMM)")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
+      const m = getMarket(opts.market);
       const [pyth, dex] = await Promise.all([
-        jingswapGet("/api/auction/pyth-prices"),
-        jingswapGet("/api/auction/dex-price"),
+        jingswapGet(`/api/auction/pyth-prices${apiContractParam(m)}`),
+        jingswapGet(`/api/auction/dex-price${apiContractParam(m)}`),
       ]);
       const xykStxPerBtc =
         dex.xykBalances && dex.xykBalances.xBalance > 0
@@ -221,30 +279,39 @@ program
 
 program
   .command("deposit-stx")
-  .description("Deposit STX into current auction cycle (deposit phase only)")
-  .requiredOption("--amount <stx>", "Amount of STX to deposit")
-  .action(async (opts: { amount: string }) => {
+  .description("Deposit quote token (STX or USDCx depending on market) into current auction cycle (deposit phase only)")
+  .requiredOption("--amount <value>", "Amount to deposit (in human units)")
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { amount: string; market?: string }) => {
     try {
-      await assertDepositPhase();
+      const m = getMarket(opts.market);
+      await assertDepositPhase(m);
       const account = await getAccount();
-      const microStx = BigInt(Math.floor(parseFloat(opts.amount) * 1_000_000));
+      const microAmount = BigInt(Math.floor(parseFloat(opts.amount) * 10 ** m.tokenBDecimals));
+
+      const postConditions = m.tokenBContract && m.tokenBAsset
+        ? [
+            Pc.principal(account.address)
+              .willSendEq(microAmount)
+              .ft(m.tokenBContract as `${string}.${string}`, m.tokenBAsset),
+          ]
+        : [Pc.principal(account.address).willSendEq(microAmount).ustx()];
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
-        functionName: "deposit-stx",
-        functionArgs: [uintCV(microStx)],
+        contractName: m.contractName,
+        functionName: m.depositFn,
+        functionArgs: [uintCV(microAmount)],
         postConditionMode: PostConditionMode.Deny,
-        postConditions: [
-          Pc.principal(account.address).willSendEq(microStx).ustx(),
-        ],
+        postConditions,
       });
 
       printJson({
         success: true,
         txid: result.txid,
-        action: "deposit-stx",
-        amount: `${opts.amount} STX`,
+        action: m.depositFn,
+        amount: `${opts.amount} ${m.tokenBSymbol}`,
+        market: m.contractName,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
       });
@@ -257,15 +324,17 @@ program
   .command("deposit-sbtc")
   .description("Deposit sBTC in satoshis into current auction cycle (deposit phase only)")
   .requiredOption("--amount <sats>", "Amount of sBTC in satoshis")
-  .action(async (opts: { amount: string }) => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { amount: string; market?: string }) => {
     try {
-      await assertDepositPhase();
+      const m = getMarket(opts.market);
+      await assertDepositPhase(m);
       const account = await getAccount();
       const sats = BigInt(parseInt(opts.amount, 10));
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
+        contractName: m.contractName,
         functionName: "deposit-sbtc",
         functionArgs: [uintCV(sats)],
         postConditionMode: PostConditionMode.Deny,
@@ -281,6 +350,7 @@ program
         txid: result.txid,
         action: "deposit-sbtc",
         amount: `${opts.amount} sats`,
+        market: m.contractName,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
       });
@@ -291,16 +361,18 @@ program
 
 program
   .command("cancel-stx")
-  .description("Cancel your STX deposit and get a refund (deposit phase only)")
-  .action(async () => {
+  .description("Cancel your quote-token deposit and get a refund (deposit phase only)")
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      await assertDepositPhase();
+      const m = getMarket(opts.market);
+      await assertDepositPhase(m);
       const account = await getAccount();
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
-        functionName: "cancel-stx-deposit",
+        contractName: m.contractName,
+        functionName: m.cancelFn,
         functionArgs: [],
         postConditionMode: PostConditionMode.Allow,
         postConditions: [],
@@ -309,7 +381,8 @@ program
       printJson({
         success: true,
         txid: result.txid,
-        action: "cancel-stx-deposit",
+        action: m.cancelFn,
+        market: m.contractName,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
       });
@@ -321,14 +394,16 @@ program
 program
   .command("cancel-sbtc")
   .description("Cancel your sBTC deposit and get a refund (deposit phase only)")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      await assertDepositPhase();
+      const m = getMarket(opts.market);
+      await assertDepositPhase(m);
       const account = await getAccount();
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
+        contractName: m.contractName,
         functionName: "cancel-sbtc-deposit",
         functionArgs: [],
         postConditionMode: PostConditionMode.Allow,
@@ -339,6 +414,7 @@ program
         success: true,
         txid: result.txid,
         action: "cancel-sbtc-deposit",
+        market: m.contractName,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
       });
@@ -354,15 +430,17 @@ program
 program
   .command("close-deposits")
   .description("Close deposit phase (requires 150+ blocks elapsed, both sides above minimum)")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      const data = await jingswapGet("/api/auction/cycle-state");
+      const m = getMarket(opts.market);
+      const data = await jingswapGet(`/api/auction/cycle-state${apiContractParam(m)}`);
       if (data.phase !== 0) throw new Error("Not in deposit phase");
       const account = await getAccount();
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
+        contractName: m.contractName,
         functionName: "close-deposits",
         functionArgs: [],
         postConditionMode: PostConditionMode.Allow,
@@ -373,6 +451,7 @@ program
         success: true,
         txid: result.txid,
         action: "close-deposits",
+        market: m.contractName,
         cycle: data.currentCycle,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
@@ -385,14 +464,16 @@ program
 program
   .command("settle")
   .description("Settle with stored Pyth prices (free but usually stale — prefer settle-with-refresh)")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      const data = await assertNotDepositPhase();
+      const m = getMarket(opts.market);
+      const data = await assertNotDepositPhase(m);
       const account = await getAccount();
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
+        contractName: m.contractName,
         functionName: "settle",
         functionArgs: [],
         postConditionMode: PostConditionMode.Allow,
@@ -403,6 +484,7 @@ program
         success: true,
         txid: result.txid,
         action: "settle",
+        market: m.contractName,
         cycle: data.currentCycle,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
@@ -415,15 +497,17 @@ program
 program
   .command("settle-with-refresh")
   .description("Settle with fresh Pyth VAAs (~2 uSTX) — recommended settlement method")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      const data = await assertNotDepositPhase();
+      const m = getMarket(opts.market);
+      const data = await assertNotDepositPhase(m);
       const vaas = await jingswapGet("/api/auction/pyth-vaas");
       const account = await getAccount();
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
+        contractName: m.contractName,
         functionName: "settle-with-refresh",
         functionArgs: [
           bufferCV(Buffer.from(vaas.btcVaaHex, "hex")),
@@ -440,6 +524,7 @@ program
         success: true,
         txid: result.txid,
         action: "settle-with-refresh",
+        market: m.contractName,
         cycle: data.currentCycle,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
@@ -452,14 +537,16 @@ program
 program
   .command("cancel-cycle")
   .description("Cancel cycle if settlement failed after 530 blocks (~17.5 min). Rolls deposits to next cycle.")
-  .action(async () => {
+  .option("--market <pair>", "Market: sbtc-stx (default) or sbtc-usdcx")
+  .action(async (opts: { market?: string }) => {
     try {
-      const data = await assertNotDepositPhase();
+      const m = getMarket(opts.market);
+      const data = await assertNotDepositPhase(m);
       const account = await getAccount();
 
       const result = await callContract(account, {
         contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
+        contractName: m.contractName,
         functionName: "cancel-cycle",
         functionArgs: [],
         postConditionMode: PostConditionMode.Allow,
@@ -470,6 +557,7 @@ program
         success: true,
         txid: result.txid,
         action: "cancel-cycle",
+        market: m.contractName,
         cycle: data.currentCycle,
         network: NETWORK,
         explorerUrl: getExplorerTxUrl(result.txid, NETWORK),
