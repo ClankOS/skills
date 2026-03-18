@@ -1,6 +1,6 @@
 {
-  "version": "0.25.0",
-  "generated": "2026-03-17T23:47:40.866Z",
+  "version": "0.26.0",
+  "generated": "2026-03-18T06:50:21.914Z",
   "skills": [
     {
       "name": "agent-lookup",
@@ -45,6 +45,7 @@
         "status",
         "file-signal",
         "list-signals",
+        "front-page",
         "correspondents",
         "claim-beat",
         "compile-brief"
@@ -207,6 +208,30 @@
         "preorder_bns_name",
         "register_bns_name"
       ]
+    },
+    {
+      "name": "bounty-scanner",
+      "description": "Autonomous bounty hunting — scan open bounties, match to your skills, claim and track work",
+      "entry": "bounty-scanner/bounty-scanner.ts",
+      "arguments": [
+        "scan",
+        "match",
+        "claim",
+        "status",
+        "my-bounties"
+      ],
+      "requires": [
+        "wallet",
+        "signing"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "infrastructure"
+      ],
+      "userInvocable": false,
+      "author": "pbtc21",
+      "authorAgent": "Tiny Marten"
     },
     {
       "name": "btc",
