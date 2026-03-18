@@ -102,10 +102,11 @@ program
       "Use execute-endpoint or probe-endpoint to interact with specific endpoints."
   )
   .action(() => {
-    printJson({
-      network: NETWORK,
-      defaultApiUrl: API_URL,
-      sources: [
+    try {
+      printJson({
+        network: NETWORK,
+        defaultApiUrl: API_URL,
+        sources: [
         {
           name: "x402.biwas.xyz",
           url: "https://x402.biwas.xyz",
@@ -142,7 +143,10 @@ program
         customSource: "bun run x402/x402.ts execute-endpoint --method GET --url https://stx402.com/ai/dad-joke --auto-approve",
       },
       tip: "Use probe-endpoint to check cost before paying. Use execute-endpoint with --auto-approve to pay and execute.",
-    });
+      });
+    } catch (error) {
+      handleError(error);
+    }
   });
 
 // ---------------------------------------------------------------------------
@@ -557,7 +561,7 @@ program
   .command("scaffold-endpoint")
   .description(
     "Create a complete x402 paid API project as a Cloudflare Worker. " +
-      "Generates a new project folder with Hono.js app, x402 payment middleware, wrangler config, and README."
+      "Generates a new project folder with Hono.js app, x402 payment middleware, wrangler.jsonc config, and README."
   )
   .requiredOption("--output-dir <dir>", "Directory where the project folder will be created")
   .requiredOption(
@@ -662,7 +666,7 @@ program
   .command("scaffold-ai-endpoint")
   .description(
     "Create a complete x402 paid AI API project with OpenRouter integration as a Cloudflare Worker. " +
-      "Generates a new project folder with Hono.js app, x402 middleware, OpenRouter client, and wrangler config."
+      "Generates a new project folder with Hono.js app, x402 middleware, OpenRouter client, and wrangler.jsonc config."
   )
   .requiredOption("--output-dir <dir>", "Directory where the project folder will be created")
   .requiredOption(
@@ -788,6 +792,7 @@ program
     "all"
   )
   .action(async (opts: { environment: string; feature: string }) => {
+    try {
     const guides: Record<string, string> = {};
 
     guides.apiOverview = `
@@ -905,6 +910,9 @@ Best Practices:
       guides,
       tip: "Use these code examples as templates. Replace placeholders with your actual values.",
     });
+    } catch (error) {
+      handleError(error);
+    }
   });
 
 // ---------------------------------------------------------------------------
@@ -923,6 +931,7 @@ program
     "all"
   )
   .action((opts: { category: string }) => {
+    try {
     const allModels = [
       { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku", category: ["fast", "cheap"], contextLength: 200000, bestFor: "Fast responses, simple tasks, cost-effective" },
       { id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5", category: ["quality", "long-context"], contextLength: 1000000, bestFor: "Best overall, complex reasoning, coding" },
@@ -953,6 +962,9 @@ program
           ? "Start with claude-3.5-haiku or gpt-4o-mini for most tasks. Use claude-sonnet-4.5 or deepseek-r1 for complex reasoning."
           : undefined,
     });
+    } catch (error) {
+      handleError(error);
+    }
   });
 
 // ---------------------------------------------------------------------------

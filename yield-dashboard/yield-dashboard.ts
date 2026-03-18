@@ -249,7 +249,7 @@ async function readAlexPosition(
     pos.details.error = String(e);
   }
 
-  // TODO: Read user LP token balance for actual position value
+  // LP token balance reading requires on-chain query for actual position value
   return pos;
 }
 
@@ -300,7 +300,7 @@ async function readBitflowPosition(
     pos.details.apySource = "fallback estimate (API unavailable)";
   }
 
-  // TODO: Read user Bitflow LP position
+  // Bitflow LP position reading requires on-chain query (position tracking not yet implemented)
   return pos;
 }
 
@@ -318,7 +318,6 @@ async function readStackingPosition(
   };
 
   try {
-
     const principalArg =
       "0x" +
       Buffer.from(serializeCV(standardPrincipalCV(walletAddress))).toString(
@@ -411,8 +410,8 @@ program
   .action(async () => {
     try {
       if (NETWORK !== "mainnet") {
-        printJson({ error: "yield-dashboard is mainnet-only" });
-        process.exit(1);
+        handleError(new Error("yield-dashboard is mainnet-only. Set NETWORK=mainnet to use this skill."));
+        return;
       }
 
       const walletAddress = await getWalletAddress();
@@ -490,8 +489,8 @@ program
   .action(async () => {
     try {
       if (NETWORK !== "mainnet") {
-        printJson({ error: "yield-dashboard is mainnet-only" });
-        process.exit(1);
+        handleError(new Error("yield-dashboard is mainnet-only. Set NETWORK=mainnet to use this skill."));
+        return;
       }
 
       const walletAddress = await getWalletAddress();
@@ -581,8 +580,8 @@ program
   .action(async (opts: { riskTolerance: string }) => {
     try {
       if (NETWORK !== "mainnet") {
-        printJson({ error: "yield-dashboard is mainnet-only" });
-        process.exit(1);
+        handleError(new Error("yield-dashboard is mainnet-only. Set NETWORK=mainnet to use this skill."));
+        return;
       }
 
       const walletAddress = await getWalletAddress();

@@ -11,7 +11,9 @@ Each skill is a self-contained directory with a `SKILL.md` (used by Claude Code 
 | [wallet](./wallet/) | `wallet/wallet.ts` | Create, import, unlock, lock, list, switch, delete, export, and manage encrypted BIP39 wallets. Derives Stacks + Bitcoin (SegWit + Taproot) addresses. |
 | [settings](./settings/) | `settings/settings.ts` | Configure the Hiro API key, custom Stacks API URL, and check the package version. Settings stored at `~/.aibtc/config.json`. |
 | [btc](./btc/) | `btc/btc.ts` | Bitcoin L1 — check balances, estimate fees, list UTXOs, transfer BTC, and classify UTXOs as cardinal (safe to spend) or ordinal (contain inscriptions). |
+| [mempool-watch](./mempool-watch/) | `mempool-watch/mempool-watch.ts` | Bitcoin mempool monitoring — check transaction confirmation status, retrieve address transaction history, and inspect current mempool state via mempool.space. |
 | [ordinals](./ordinals/) | `ordinals/ordinals.ts` | Bitcoin ordinals — get Taproot address, estimate inscription fees, create inscriptions via the two-step commit/reveal pattern, and fetch inscription content. |
+| [souldinals](./souldinals/) | `souldinals/souldinals.ts` | Souldinals collection management — inscribe soul.md as a child inscription under a genesis parent, list and load soul inscriptions from the wallet, and display parsed soul traits. |
 | [signing](./signing/) | `signing/signing.ts` | Message signing and verification — SIP-018 structured data (on-chain verifiable), Stacks plain-text (SIWS-compatible), Bitcoin BIP-137 message signing, and BIP-340 Schnorr for Taproot multisig. |
 | [stx](./stx/) | `stx/stx.ts` | Stacks L2 — check STX balances, transfer STX, broadcast transactions, call Clarity contracts, deploy contracts, and query transaction status. |
 | [sbtc](./sbtc/) | `sbtc/sbtc.ts` | sBTC (wrapped Bitcoin on Stacks L2) — check balances, transfer sBTC, get deposit info, check peg statistics, deposit BTC to receive sBTC, and track deposit status. |
@@ -36,6 +38,7 @@ Each skill is a self-contained directory with a `SKILL.md` (used by Claude Code 
 | [aibtc-news-deal-flow](./aibtc-news-deal-flow/) | `aibtc-news-deal-flow/aibtc-news-deal-flow.ts` | Deal Flow editorial voice skill — compose and validate signals about ordinals trades, bounties, x402 payments, collaborations, reputation events, and agent onboarding for aibtc.news. |
 | [taproot-multisig](./taproot-multisig/) | `taproot-multisig/taproot-multisig.ts` | Bitcoin Taproot M-of-N multisig coordination — share x-only pubkeys, verify co-signer Schnorr signatures, and navigate the OP_CHECKSIGADD workflow. Proven on mainnet: 2-of-2 (block 937,849) and 3-of-3 (block 938,206). |
 | [onboarding](./onboarding/) | `onboarding/onboarding.ts` | First-hour AIBTC onboarding automation — doctor checks, registration/heartbeat helpers, curated skill-pack installs, and non-blocking community guidance. |
+| [agent-lookup](./agent-lookup/) | `agent-lookup/agent-lookup.ts` | AIBTC agent registry queries — look up agents by address or name, view network-wide stats, and rank agents by check-ins, achievements, or level. |
 
 ## Workflow Discovery (what-to-do/)
 
@@ -56,6 +59,7 @@ The [`what-to-do/`](./what-to-do/) directory contains multi-step workflow guides
 | [Setup Autonomous Loop](./what-to-do/setup-autonomous-loop.md) | Fork the loop starter kit and run a self-improving autonomous cycle on a VPS or Mac Mini |
 | [Setup Arc Starter](./what-to-do/setup-arc-starter.md) | Clone and configure arc-starter to run an autonomous agent on the dispatch loop architecture |
 | [Interact with AIBTC Projects](./what-to-do/interact-with-projects.md) | Add, rate, claim, and manage projects on the shared AIBTC project board |
+| [Scan Project Board](./what-to-do/scan-project-board.md) | Periodically scan the project board during autonomous cycles to find, claim, and deliver open work |
 | [Upload Your Setup](./what-to-do/upload-your-setup.md) | Document your agent configuration and submit it to the community gallery |
 | [Give Reputation Feedback](./what-to-do/give-reputation-feedback.md) | Submit on-chain reputation feedback for other agents via ERC-8004 |
 | [Request Validation](./what-to-do/request-validation.md) | Request on-chain validation from a validator, respond as a validator, and check validation status via ERC-8004 |
@@ -72,7 +76,9 @@ The [`aibtc-agents/`](./aibtc-agents/) directory is a community registry of agen
 - **[Template](./aibtc-agents/template/setup.md)** — Blank configuration to copy when adding your own agent
 - **[arc0btc](./aibtc-agents/arc0btc/README.md)** — Reference configuration showing a complete, working agent setup
 - **[secret-mars](./aibtc-agents/secret-mars/README.md)** — Autonomous loop agent with subagents and contribution mode
+- **[spark0btc](./aibtc-agents/spark0btc/README.md)** — Dev tools agent that ships PRs, earns bounties, and scouts repos
 - **[tiny-marten](./aibtc-agents/tiny-marten/README.md)** — Dispatch loop agent, ecosystem connector, ordinals trader
+- **[testnet-explorer](./aibtc-agents/testnet-explorer/README.md)** — Read-only testnet reference configuration for safe exploration
 
 To contribute your agent config, fork the repo, copy the template to `aibtc-agents/<your-handle>/README.md`, fill it in, and open a PR. See [`aibtc-agents/README.md`](./aibtc-agents/README.md) for full contribution guidelines.
 
@@ -157,27 +163,32 @@ All scripts print a single JSON object to stdout. Errors are also output as JSON
 
 ### SKILL.md Frontmatter
 
-Each `SKILL.md` begins with YAML frontmatter:
+Each `SKILL.md` begins with YAML frontmatter following the [agentskills.io](https://agentskills.io) spec. Top-level fields (`name`, `description`) are plain strings; all other fields are nested under `metadata:` as quoted strings:
 
 ```yaml
 ---
 name: btc
-description: Bitcoin L1 operations — check balances, ...
-user-invocable: false
-arguments: balance | fees | utxos | transfer | get-cardinal-utxos | get-ordinal-utxos | get-inscriptions
-entry: btc/btc.ts
-requires: [wallet]
-tags: [l1, write, requires-funds]
+description: Bitcoin L1 operations — check balances, estimate fees, list UTXOs, transfer BTC, and classify UTXOs as cardinal or ordinal.
+metadata:
+  user-invocable: "false"
+  arguments: "balance | fees | utxos | transfer | get-cardinal-utxos | get-ordinal-utxos | get-inscriptions"
+  entry: "btc/btc.ts"
+  requires: "wallet"
+  tags: "l1, write, requires-funds"
+  author: "whoabuddy"
+  author-agent: "Trustless Indra"
 ---
 ```
 
-- `name` — Skill identifier
+- `name` — Skill identifier (matches directory name)
 - `description` — What the skill does (used by Claude Code for discovery)
-- `user-invocable: false` — Claude Code invokes skills internally, not users
-- `arguments` — Pipe-separated list of subcommands
-- `entry` — Path to the CLI script(s), relative to the repo root
-- `requires` — Skills that must be set up first (e.g. `[wallet]`)
-- `tags` — Controlled vocabulary for filtering: `read-only`, `write`, `mainnet-only`, `requires-funds`, `sensitive`, `infrastructure`, `defi`, `l1`, `l2`
+- `metadata.user-invocable` — Always `"false"` — Claude Code invokes skills internally, not users
+- `metadata.arguments` — Pipe-separated list of subcommands
+- `metadata.entry` — Path to the CLI script(s), relative to the repo root. Use comma-separated for multiple entries.
+- `metadata.requires` — Comma-separated skills that must be configured first (e.g. `"wallet"`)
+- `metadata.tags` — Comma-separated controlled vocabulary: `read-only`, `write`, `mainnet-only`, `requires-funds`, `sensitive`, `infrastructure`, `defi`, `l1`, `l2`
+- `metadata.author` — GitHub handle of the skill author
+- `metadata.author-agent` — Name of the AI agent that helped author the skill (optional)
 
 ### Shared Infrastructure (`src/lib/`)
 

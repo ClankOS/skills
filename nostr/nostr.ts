@@ -194,7 +194,7 @@ program
   .description("Post a kind:1 note to configured relays. Requires unlocked wallet.")
   .requiredOption("--content <text>", "Note content")
   .option("--tags <hashtags>", "Comma-separated hashtags (e.g. Bitcoin,sBTC)")
-  .action(async (opts) => {
+  .action(async (opts: { content: string; tags?: string }) => {
     try {
       const { sk, pubkey } = deriveNostrKeys();
 
@@ -239,7 +239,7 @@ program
   .option("--pubkey <hex-or-npub>", "Filter by author pubkey")
   .option("--limit <n>", "Max notes to fetch", "20")
   .option("--relay <url>", "Override relay URL")
-  .action(async (opts) => {
+  .action(async (opts: { pubkey?: string; limit: string; relay?: string }) => {
     try {
       const pool = createPool();
       const relays = opts.relay ? [opts.relay] : DEFAULT_RELAYS;
@@ -283,7 +283,7 @@ program
   .requiredOption("--tags <hashtags>", "Comma-separated hashtags to search")
   .option("--limit <n>", "Max notes to fetch", "20")
   .option("--relay <url>", "Override relay URL")
-  .action(async (opts) => {
+  .action(async (opts: { tags: string; limit: string; relay?: string }) => {
     try {
       const pool = createPool();
       const relays = opts.relay ? [opts.relay] : DEFAULT_RELAYS;
@@ -322,7 +322,7 @@ program
   .command("get-profile")
   .description("Get a user's kind:0 profile metadata.")
   .requiredOption("--pubkey <hex-or-npub>", "User pubkey (hex or npub)")
-  .action(async (opts) => {
+  .action(async (opts: { pubkey: string }) => {
     try {
       const pool = createPool();
       const relays = DEFAULT_RELAYS;
@@ -362,58 +362,66 @@ program
   .option("--picture <url>", "Profile picture URL")
   .option("--nip05 <nip05>", "NIP-05 identifier (e.g. user@domain.com)")
   .option("--lud16 <lud16>", "Lightning address (e.g. user@getalby.com)")
-  .action(async (opts) => {
-    try {
-      const { sk, pubkey } = deriveNostrKeys();
-
-      // Fetch existing profile to merge (kind:0 is replaceable — publishing
-      // a new event wipes fields not included). This prevents set-profile
-      // --name "foo" from deleting about, picture, etc.
-      const pool = createPool();
-      const relays = DEFAULT_RELAYS;
-      let existing: Record<string, string> = {};
+  .action(
+    async (opts: {
+      name?: string;
+      about?: string;
+      picture?: string;
+      nip05?: string;
+      lud16?: string;
+    }) => {
       try {
-        const profileEvents = await queryRelays(pool, relays, {
-          kinds: [0],
-          authors: [pubkey],
-          limit: 1,
-        });
-        if (profileEvents.length > 0) {
-          existing = JSON.parse(profileEvents[0].content);
+        const { sk, pubkey } = deriveNostrKeys();
+
+        // Fetch existing profile to merge (kind:0 is replaceable — publishing
+        // a new event wipes fields not included). This prevents set-profile
+        // --name "foo" from deleting about, picture, etc.
+        const pool = createPool();
+        const relays = DEFAULT_RELAYS;
+        let existing: Record<string, string> = {};
+        try {
+          const profileEvents = await queryRelays(pool, relays, {
+            kinds: [0],
+            authors: [pubkey],
+            limit: 1,
+          });
+          if (profileEvents.length > 0) {
+            existing = JSON.parse(profileEvents[0].content);
+          }
+        } catch {
+          // If fetch fails, proceed with empty — user's new fields will still apply
         }
-      } catch {
-        // If fetch fails, proceed with empty — user's new fields will still apply
+
+        const content: Record<string, string> = { ...existing };
+        if (opts.name) content.name = opts.name;
+        if (opts.about) content.about = opts.about;
+        if (opts.picture) content.picture = opts.picture;
+        if (opts.nip05) content.nip05 = opts.nip05;
+        if (opts.lud16) content.lud16 = opts.lud16;
+
+        const template: EventTemplate = {
+          kind: 0,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: JSON.stringify(content),
+        };
+
+        const event = finalizeEvent(template, sk);
+        const results = await publishToRelays(pool, event, relays);
+
+        pool.close(relays);
+        printJson({
+          success: true,
+          eventId: event.id,
+          pubkey,
+          profile: content,
+          relays: results,
+        });
+      } catch (err) {
+        handleError(err);
       }
-
-      const content: Record<string, string> = { ...existing };
-      if (opts.name) content.name = opts.name;
-      if (opts.about) content.about = opts.about;
-      if (opts.picture) content.picture = opts.picture;
-      if (opts.nip05) content.nip05 = opts.nip05;
-      if (opts.lud16) content.lud16 = opts.lud16;
-
-      const template: EventTemplate = {
-        kind: 0,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [],
-        content: JSON.stringify(content),
-      };
-
-      const event = finalizeEvent(template, sk);
-      const results = await publishToRelays(pool, event, relays);
-
-      pool.close(relays);
-      printJson({
-        success: true,
-        eventId: event.id,
-        pubkey,
-        profile: content,
-        relays: results,
-      });
-    } catch (err) {
-      handleError(err);
     }
-  });
+  );
 
 // ---------------------------------------------------------------------------
 // get-pubkey
@@ -465,11 +473,11 @@ program
   .requiredOption("--signal-id <id>", "Signal ID from aibtc.news")
   .option("--beat <name>", "Beat name for context (e.g. 'BTC Macro')")
   .option("--relays <urls>", "Comma-separated relay URLs (overrides defaults)")
-  .action(async (opts) => {
+  .action(async (opts: { signalId: string; beat?: string; relays?: string }) => {
     try {
       const { sk, pubkey } = deriveNostrKeys();
       const relays = opts.relays
-        ? (opts.relays as string).split(",").map((r: string) => r.trim())
+        ? opts.relays.split(",").map((r: string) => r.trim())
         : DEFAULT_RELAYS;
 
       // Fetch signal from aibtc.news API
@@ -525,41 +533,48 @@ program
   .option("--beat <name>", "Beat name", "BTC Macro")
   .option("--signal-id <id>", "Signal ID for reference link")
   .option("--relays <urls>", "Comma-separated relay URLs (overrides defaults)")
-  .action(async (opts) => {
-    try {
-      const { sk, pubkey } = deriveNostrKeys();
-      const relays = opts.relays
-        ? (opts.relays as string).split(",").map((r: string) => r.trim())
-        : DEFAULT_RELAYS;
+  .action(
+    async (opts: {
+      content: string;
+      beat: string;
+      signalId?: string;
+      relays?: string;
+    }) => {
+      try {
+        const { sk, pubkey } = deriveNostrKeys();
+        const relays = opts.relays
+          ? opts.relays.split(",").map((r: string) => r.trim())
+          : DEFAULT_RELAYS;
 
-      const { content: noteContent, tags } = formatSignalNote({
-        beat: opts.beat,
-        content: opts.content,
-        signalId: opts.signalId,
-      });
+        const { content: noteContent, tags } = formatSignalNote({
+          beat: opts.beat,
+          content: opts.content,
+          signalId: opts.signalId,
+        });
 
-      const template: EventTemplate = {
-        kind: 1,
-        created_at: Math.floor(Date.now() / 1000),
-        tags,
-        content: noteContent,
-      };
+        const template: EventTemplate = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags,
+          content: noteContent,
+        };
 
-      const event = finalizeEvent(template, sk);
-      const pool = createPool();
-      const results = await publishToRelays(pool, event, relays);
-      pool.close(relays);
+        const event = finalizeEvent(template, sk);
+        const pool = createPool();
+        const results = await publishToRelays(pool, event, relays);
+        pool.close(relays);
 
-      printJson({
-        success: true,
-        eventId: event.id,
-        pubkey,
-        relays: results,
-      });
-    } catch (err) {
-      handleError(err);
+        printJson({
+          success: true,
+          eventId: event.id,
+          pubkey,
+          relays: results,
+        });
+      } catch (err) {
+        handleError(err);
+      }
     }
-  });
+  );
 
 // ---------------------------------------------------------------------------
 

@@ -1,11 +1,15 @@
 ---
 name: btc
-description: Bitcoin L1 operations — check balances, estimate fees, list UTXOs, transfer BTC, and classify UTXOs as cardinal (safe to spend) or ordinal (contain inscriptions). Data sourced from mempool.space and the Hiro Ordinals API.
-user-invocable: false
-arguments: balance | fees | utxos | transfer | get-cardinal-utxos | get-ordinal-utxos | get-inscriptions
-entry: btc/btc.ts
-requires: [wallet]
-tags: [l1, write, requires-funds]
+description: "Bitcoin L1 operations — check balances, estimate fees, list UTXOs, transfer BTC, and classify UTXOs as cardinal (safe to spend) or ordinal (contain inscriptions). Data sourced from mempool.space and the Hiro Ordinals API."
+metadata:
+  author: "whoabuddy"
+  author-agent: "Trustless Indra"
+  user-invocable: "false"
+  arguments: "balance | fees | utxos | transfer | get-cardinal-utxos | get-ordinal-utxos | get-inscriptions"
+  entry: "btc/btc.ts"
+  mcp-tools: "get_btc_balance, get_btc_fees, get_btc_utxos, transfer_btc, get_cardinal_utxos, get_ordinal_utxos, get_inscriptions_by_address"
+  requires: "wallet"
+  tags: "l1, write, requires-funds"
 ---
 
 # BTC Skill

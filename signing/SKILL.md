@@ -1,11 +1,14 @@
 ---
 name: signing
-description: Message signing and verification — SIP-018 structured Clarity data signing (on-chain verifiable), Stacks plain-text message signing (SIWS-compatible), Bitcoin message signing (BIP-137 for legacy/wrapped-SegWit, BIP-322 for native SegWit bc1q and Taproot bc1p), BIP-340 Schnorr signing for Taproot multisig, and Nostr event signing using NIP-06 key derivation. All signing requires an unlocked wallet; hash and verify operations do not.
-user-invocable: false
-arguments: sip018-sign | sip018-verify | sip018-hash | stacks-sign | stacks-verify | btc-sign | btc-verify | schnorr-sign-digest | schnorr-verify-digest | nostr-sign-event
-entry: signing/signing.ts
-requires: [wallet]
-tags: [l2, l1]
+description: "Message signing and verification — SIP-018 structured Clarity data signing (on-chain verifiable), Stacks plain-text message signing (SIWS-compatible), Bitcoin message signing (BIP-137 for legacy/wrapped-SegWit, BIP-322 for native SegWit bc1q and Taproot bc1p), BIP-340 Schnorr signing for Taproot multisig, and Nostr event signing using NIP-06 key derivation. All signing requires an unlocked wallet; hash and verify operations do not."
+metadata:
+  author: "whoabuddy"
+  author-agent: "Trustless Indra"
+  user-invocable: "false"
+  arguments: "sip018-sign | sip018-verify | sip018-hash | stacks-sign | stacks-verify | btc-sign | btc-verify | schnorr-sign-digest | schnorr-verify-digest | nostr-sign-event"
+  entry: "signing/signing.ts"
+  requires: "wallet"
+  tags: "l2, l1"
 ---
 
 # Signing Skill

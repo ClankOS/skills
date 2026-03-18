@@ -1,7 +1,41 @@
 {
-  "version": "0.15.0",
-  "generated": "2026-03-18T06:37:16.087Z",
+  "version": "0.26.0",
+  "generated": "2026-03-18T06:47:34.914Z",
   "skills": [
+    {
+      "name": "agent-lookup",
+      "description": "Query the AIBTC agent network registry — look up agents by address or name, view network-wide stats, and rank agents by check-ins, achievements, or level.",
+      "entry": "agent-lookup/agent-lookup.ts",
+      "arguments": [
+        "lookup",
+        "stats",
+        "top"
+      ],
+      "requires": [],
+      "tags": [
+        "read-only"
+      ],
+      "userInvocable": false,
+      "author": "DeOrganized",
+      "authorAgent": "Long Elio"
+    },
+    {
+      "name": "aibtc-agents",
+      "description": "Community registry of agent configurations for the AIBTC platform — browse reference configs for arc0btc, spark0btc, iris0btc, loom0btc, and forge0btc, or copy the template to bootstrap a new agent.",
+      "entry": "aibtc-agents/README.md",
+      "arguments": [
+        "browse",
+        "copy-template"
+      ],
+      "requires": [],
+      "tags": [
+        "infrastructure",
+        "read-only"
+      ],
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
+    },
     {
       "name": "aibtc-news",
       "description": "aibtc.news decentralized intelligence platform — list and claim editorial beats, file authenticated signals (news items) with BIP-322 signatures, browse signals, check correspondent leaderboard rankings, and trigger daily brief compilation.",
@@ -11,6 +45,7 @@
         "status",
         "file-signal",
         "list-signals",
+        "front-page",
         "correspondents",
         "claim-beat",
         "compile-brief"
@@ -24,7 +59,39 @@
         "write",
         "infrastructure"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
+    },
+    {
+      "name": "aibtc-news-classifieds",
+      "description": "Classified ads and extended API coverage for aibtc.news — list, post, and browse classifieds; read briefs (x402); correct signals; update beats; fetch streaks and editorial skill resources.",
+      "entry": "aibtc-news-classifieds/aibtc-news-classifieds.ts",
+      "arguments": [
+        "list-classifieds",
+        "get-classified",
+        "post-classified",
+        "get-signal",
+        "correct-signal",
+        "update-beat",
+        "get-brief",
+        "inscribe-brief",
+        "get-inscription",
+        "streaks",
+        "list-skills"
+      ],
+      "requires": [
+        "wallet",
+        "signing"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "aibtc-news-deal-flow",
@@ -43,7 +110,9 @@
         "infrastructure",
         "l2"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "pbtc21",
+      "authorAgent": "Tiny Marten"
     },
     {
       "name": "aibtc-news-protocol",
@@ -62,19 +131,26 @@
         "infrastructure",
         "l2"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "bitflow",
-      "description": "Bitflow DEX on Stacks — token swaps with aggregated liquidity, market ticker data, swap routing, price impact analysis, and Keeper automation for scheduled orders. All operations are mainnet-only. No API key required (500 req/min public rate limit). Write operations require an unlocked wallet.",
+      "description": "Bitflow DEX on Stacks — unified route ranking across SDK routes and HODLMM quotes, token swaps, market ticker data, HODLMM bin inspection and liquidity management, price impact analysis, and Keeper automation for scheduled orders. All operations are mainnet-only. No API key required for public routes during beta. Write operations require an unlocked wallet.",
       "entry": "bitflow/bitflow.ts",
       "arguments": [
         "get-ticker",
         "get-tokens",
+        "get-hodlmm-pools",
+        "get-hodlmm-bins",
+        "get-hodlmm-position-bins",
         "get-swap-targets",
         "get-quote",
         "get-routes",
         "swap",
+        "add-liquidity-simple",
+        "withdraw-liquidity-simple",
         "get-keeper-contract",
         "create-order",
         "get-order",
@@ -118,7 +194,20 @@
         "write",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "lookup_bns_name",
+        "reverse_bns_lookup",
+        "get_bns_info",
+        "check_bns_availability",
+        "get_bns_price",
+        "list_user_domains",
+        "claim_bns_name_fast",
+        "preorder_bns_name",
+        "register_bns_name"
+      ]
     },
     {
       "name": "bounty-scanner",
@@ -127,7 +216,7 @@
       "arguments": [
         "scan",
         "match",
-        "claim <id>",
+        "claim",
         "status",
         "my-bounties"
       ],
@@ -165,7 +254,18 @@
         "write",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "get_btc_balance",
+        "get_btc_fees",
+        "get_btc_utxos",
+        "transfer_btc",
+        "get_cardinal_utxos",
+        "get_ordinal_utxos",
+        "get_inscriptions_by_address"
+      ]
     },
     {
       "name": "business-dev",
@@ -206,8 +306,59 @@
         "infrastructure"
       ],
       "userInvocable": false,
-      "author": "arc0btc",
-      "authorAgent": "Trustless Indra"
+      "author": "pbtc21",
+      "authorAgent": "Tiny Marten"
+    },
+    {
+      "name": "child-inscription",
+      "description": "Parent-child Ordinals inscriptions — estimate fees, broadcast commit tx, and reveal child inscription establishing on-chain provenance per the Ordinals provenance spec.",
+      "entry": "child-inscription/child-inscription.ts",
+      "arguments": [
+        "estimate",
+        "inscribe",
+        "reveal"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l1",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "Secret Dome",
+      "mcpTools": [
+        "estimate_child_inscription_fee",
+        "inscribe_child",
+        "inscribe_child_reveal"
+      ]
+    },
+    {
+      "name": "contract",
+      "description": "Clarity smart contract deployment and interaction — deploy contracts from source files, call public functions with post conditions, and call read-only functions.",
+      "entry": "contract/contract.ts",
+      "arguments": [
+        "deploy",
+        "call",
+        "read"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "mcpTools": [
+        "deploy_contract",
+        "call_contract",
+        "call_read_only_function"
+      ]
     },
     {
       "name": "credentials",
@@ -225,7 +376,9 @@
         "infrastructure",
         "sensitive"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "defi",
@@ -254,7 +407,21 @@
         "mainnet-only",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "alex_get_swap_quote",
+        "alex_swap",
+        "alex_get_pool_info",
+        "alex_list_pools",
+        "zest_list_assets",
+        "zest_get_position",
+        "zest_supply",
+        "zest_withdraw",
+        "zest_borrow",
+        "zest_repay"
+      ]
     },
     {
       "name": "dual-stacking",
@@ -275,7 +442,41 @@
         "requires-funds",
         "defi"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "sonic-mast",
+      "authorAgent": "Sonic Mast"
+    },
+    {
+      "name": "erc8004",
+      "description": "ERC-8004 identity, reputation, and validation — register identities, retrieve identity info by agent ID, query reputation scores, submit peer feedback, and request or check third-party validation status.",
+      "entry": "erc8004/erc8004.ts",
+      "arguments": [
+        "register",
+        "get-identity",
+        "get-reputation",
+        "give-feedback",
+        "request-validation",
+        "validation-status"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "Secret Dome",
+      "mcpTools": [
+        "register_identity",
+        "get_identity",
+        "give_feedback",
+        "get_reputation",
+        "request_validation",
+        "get_validation_status"
+      ]
     },
     {
       "name": "identity",
@@ -300,7 +501,107 @@
         "l2",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
+    },
+    {
+      "name": "inbox",
+      "description": "x402-gated agent inbox — send paid messages to any agent's inbox, read received messages, and check inbox status. Send requires an unlocked wallet with sBTC balance (100 sats per message); sponsored transactions mean no STX gas fees.",
+      "entry": "inbox/inbox.ts",
+      "arguments": [
+        "send",
+        "read",
+        "status"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "T-FI",
+      "mcpTools": [
+        "send_inbox_message"
+      ]
+    },
+    {
+      "name": "jingswap",
+      "description": "Jingswap blind batch auction — supports sbtc-stx and sbtc-usdcx markets. Query cycle state, prices, depositors, settlements, history, user activity. Deposit/cancel quote token and sBTC, close deposits, settle with fresh Pyth oracles, cancel failed cycles.",
+      "entry": "jingswap/jingswap.ts",
+      "arguments": [
+        "cycle-state",
+        "depositors",
+        "user-deposit",
+        "settlement",
+        "cycles-history",
+        "user-activity",
+        "prices",
+        "deposit-stx",
+        "deposit-sbtc",
+        "cancel-stx",
+        "cancel-sbtc",
+        "close-deposits",
+        "settle",
+        "settle-with-refresh",
+        "cancel-cycle"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "requires-funds",
+        "defi"
+      ],
+      "userInvocable": false,
+      "author": "Rapha-btc",
+      "authorAgent": "Claude Code",
+      "mcpTools": [
+        "jingswap_get_cycle_state",
+        "jingswap_get_depositors",
+        "jingswap_get_user_deposit",
+        "jingswap_get_settlement",
+        "jingswap_get_cycles_history",
+        "jingswap_get_user_activity",
+        "jingswap_get_prices",
+        "jingswap_deposit_stx",
+        "jingswap_deposit_sbtc",
+        "jingswap_cancel_stx",
+        "jingswap_cancel_sbtc",
+        "jingswap_close_deposits",
+        "jingswap_settle",
+        "jingswap_settle_with_refresh",
+        "jingswap_cancel_cycle"
+      ]
+    },
+    {
+      "name": "mempool-watch",
+      "description": "Bitcoin mempool monitoring — check transaction confirmation status, retrieve address transaction history, and inspect current mempool state. Data sourced from mempool.space.",
+      "entry": "mempool-watch/mempool-watch.ts",
+      "arguments": [
+        "tx-status",
+        "address-history",
+        "mempool-stats"
+      ],
+      "requires": [],
+      "tags": [
+        "l1",
+        "read-only"
+      ],
+      "userInvocable": false,
+      "author": "teflonbtc",
+      "authorAgent": "Dual Cougar",
+      "mcpTools": [
+        "get_btc_mempool_info",
+        "get_btc_transaction_status",
+        "get_btc_address_txs"
+      ]
     },
     {
       "name": "nft",
@@ -321,7 +622,17 @@
         "l2",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "get_nft_holdings",
+        "get_nft_metadata",
+        "transfer_nft",
+        "get_nft_owner",
+        "get_collection_info",
+        "get_nft_history"
+      ]
     },
     {
       "name": "nostr",
@@ -343,12 +654,17 @@
         "signing"
       ],
       "tags": [
-        "l1",
         "write"
       ],
       "userInvocable": false,
-      "author": "cocoa007",
-      "authorAgent": "Fluid Briar"
+      "author": [
+        "cocoa007",
+        "sonic-mast"
+      ],
+      "authorAgent": [
+        "Fluid Briar",
+        "Sonic Mast"
+      ]
     },
     {
       "name": "onboarding",
@@ -369,7 +685,29 @@
         "write"
       ],
       "userInvocable": false,
-      "author": "k9dreamermacmini-coder"
+      "author": "k9dreamermacmini-coder",
+      "authorAgent": "k9dreamermacmini-coder"
+    },
+    {
+      "name": "openrouter",
+      "description": "OpenRouter AI integration — list available models, get integration code examples for different environments, and send prompts to any OpenRouter-compatible model. Requires OPENROUTER_API_KEY env var for chat operations.",
+      "entry": "openrouter/openrouter.ts",
+      "arguments": [
+        "models",
+        "guide",
+        "chat"
+      ],
+      "requires": [],
+      "tags": [
+        "read-only"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "Secret Dome",
+      "mcpTools": [
+        "openrouter_integration_guide",
+        "openrouter_models"
+      ]
     },
     {
       "name": "ordinals",
@@ -390,7 +728,38 @@
         "write",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
+    },
+    {
+      "name": "ordinals-p2p",
+      "description": "Peer-to-peer ordinals trading on the trade ledger (ledger.drx4.xyz) — create offers, counter, accept transfers, cancel trades, record PSBT swaps, and browse the public trade history. All write operations are BIP-137 authenticated.",
+      "entry": "ordinals-p2p/ordinals-p2p.ts",
+      "arguments": [
+        "list-trades",
+        "get-trade",
+        "create-offer",
+        "counter",
+        "transfer",
+        "cancel",
+        "psbt-swap",
+        "my-trades",
+        "agents"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l1",
+        "l2",
+        "write",
+        "requires-funds",
+        "defi"
+      ],
+      "userInvocable": false,
+      "author": "secret-mars",
+      "authorAgent": "Secret Mars"
     },
     {
       "name": "pillar",
@@ -449,7 +818,77 @@
         "write",
         "mainnet-only"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "pillar_connect",
+        "pillar_disconnect",
+        "pillar_status",
+        "pillar_send",
+        "pillar_fund",
+        "pillar_add_admin",
+        "pillar_supply",
+        "pillar_auto_compound",
+        "pillar_unwind",
+        "pillar_boost",
+        "pillar_position",
+        "pillar_create_wallet",
+        "pillar_invite",
+        "pillar_dca_invite",
+        "pillar_dca_partners",
+        "pillar_dca_leaderboard",
+        "pillar_dca_status",
+        "pillar_key_generate",
+        "pillar_key_unlock",
+        "pillar_key_lock",
+        "pillar_key_info",
+        "pillar_direct_boost",
+        "pillar_direct_unwind",
+        "pillar_direct_supply",
+        "pillar_direct_send",
+        "pillar_direct_auto_compound",
+        "pillar_direct_position",
+        "pillar_direct_withdraw_collateral",
+        "pillar_direct_add_admin",
+        "pillar_direct_create_wallet",
+        "pillar_direct_dca_invite",
+        "pillar_direct_dca_partners",
+        "pillar_direct_dca_leaderboard",
+        "pillar_direct_dca_status",
+        "pillar_direct_quote",
+        "pillar_direct_resolve_recipient",
+        "pillar_direct_stack_stx",
+        "pillar_direct_revoke_fast_pool",
+        "pillar_direct_stacking_status"
+      ]
+    },
+    {
+      "name": "psbt",
+      "description": "PSBT (Partially Signed Bitcoin Transaction) construction and signing — build PSBTs for ordinals purchases, estimate fees, sign with the active wallet, and broadcast finalized PSBTs.",
+      "entry": "psbt/psbt.ts",
+      "arguments": [
+        "estimate-fee",
+        "sign",
+        "broadcast"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l1",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "Secret Dome",
+      "mcpTools": [
+        "psbt_create_ordinal_buy",
+        "psbt_sign",
+        "psbt_broadcast",
+        "psbt_decode"
+      ]
     },
     {
       "name": "query",
@@ -471,7 +910,43 @@
         "l2",
         "read-only"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "get_stx_fees",
+        "get_account_info",
+        "get_account_transactions",
+        "get_block_info",
+        "get_mempool_info",
+        "get_contract_info",
+        "get_contract_events",
+        "get_network_status",
+        "call_read_only_function"
+      ]
+    },
+    {
+      "name": "relay-diagnostic",
+      "description": "Sponsor relay health checks and nonce recovery — diagnose stuck sponsored transactions, check nonce gaps, and attempt RBF or gap-fill recovery.",
+      "entry": "relay-diagnostic/relay-diagnostic.ts",
+      "arguments": [
+        "check-health",
+        "recover"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "infrastructure"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "Secret Dome",
+      "mcpTools": [
+        "check_relay_health",
+        "recover_sponsor_nonce"
+      ]
     },
     {
       "name": "reputation",
@@ -497,7 +972,9 @@
         "l2",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "sbtc",
@@ -519,7 +996,17 @@
         "write",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "sbtc_get_balance",
+        "sbtc_transfer",
+        "sbtc_get_deposit_info",
+        "sbtc_get_peg_info",
+        "sbtc_deposit",
+        "sbtc_deposit_status"
+      ]
     },
     {
       "name": "settings",
@@ -539,7 +1026,9 @@
       "tags": [
         "infrastructure"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "signing",
@@ -564,7 +1053,33 @@
         "l2",
         "l1"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
+    },
+    {
+      "name": "souldinals",
+      "description": "Souldinals collection management — inscribe soul.md as a child inscription under a genesis parent, list and load soul inscriptions from the wallet, and display parsed soul traits and metadata.",
+      "entry": "souldinals/souldinals.ts",
+      "arguments": [
+        "inscribe-soul",
+        "reveal-soul",
+        "list-souls",
+        "load-soul",
+        "display-soul"
+      ],
+      "requires": [
+        "wallet",
+        "ordinals"
+      ],
+      "tags": [
+        "l1",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "strange-lux-agent",
+      "authorAgent": "Strange Lux"
     },
     {
       "name": "stacking",
@@ -584,7 +1099,15 @@
         "write",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "get_pox_info",
+        "get_stacking_status",
+        "stack_stx",
+        "extend_stacking"
+      ]
     },
     {
       "name": "stacks-market",
@@ -613,7 +1136,9 @@
         "mainnet-only",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "stackspot",
@@ -636,7 +1161,17 @@
         "mainnet-only",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "stackspot_list_pots",
+        "stackspot_get_pot_state",
+        "stackspot_join_pot",
+        "stackspot_start_pot",
+        "stackspot_claim_rewards",
+        "stackspot_cancel_pot"
+      ]
     },
     {
       "name": "stx",
@@ -658,7 +1193,17 @@
         "write",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "get_stx_balance",
+        "transfer_stx",
+        "broadcast_transaction",
+        "call_contract",
+        "deploy_contract",
+        "get_transaction_status"
+      ]
     },
     {
       "name": "styx",
@@ -683,7 +1228,18 @@
         "requires-funds",
         "defi"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "arc0btc",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "styx_pool_status",
+        "styx_pools",
+        "styx_fees",
+        "styx_price",
+        "styx_deposit",
+        "styx_status",
+        "styx_history"
+      ]
     },
     {
       "name": "taproot-multisig",
@@ -704,7 +1260,37 @@
         "requires-funds",
         "sensitive"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "arc0btc",
+      "authorAgent": "Trustless Indra"
+    },
+    {
+      "name": "tenero",
+      "description": "Tenero (formerly STXTools) market analytics — token info, market stats, top gainers/losers, wallet holdings and trades, trending DEX pools, whale trades, holder distribution, and search. Covers Stacks, Spark, and SportsFun chains. No API key required.",
+      "entry": "tenero/tenero.ts",
+      "arguments": [
+        "token-info",
+        "market-summary",
+        "market-stats",
+        "top-gainers",
+        "top-losers",
+        "wallet-holdings",
+        "wallet-trades",
+        "trending-pools",
+        "whale-trades",
+        "holder-stats",
+        "search"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "read-only"
+      ],
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "tokens",
@@ -724,7 +1310,42 @@
         "l2",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "get_token_balance",
+        "transfer_token",
+        "get_token_info",
+        "list_user_tokens",
+        "get_token_holders"
+      ]
+    },
+    {
+      "name": "transfer",
+      "description": "STX, fungible token (SIP-010), and NFT (SIP-009) transfers on Stacks. All operations require an unlocked wallet.",
+      "entry": "transfer/transfer.ts",
+      "arguments": [
+        "stx",
+        "token",
+        "nft"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "requires-funds"
+      ],
+      "userInvocable": false,
+      "author": "tfibtcagent",
+      "authorAgent": "Secret Dome",
+      "mcpTools": [
+        "transfer_stx",
+        "transfer_token",
+        "transfer_nft"
+      ]
     },
     {
       "name": "validation",
@@ -745,7 +1366,9 @@
         "l2",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "wallet",
@@ -773,7 +1396,21 @@
       ],
       "userInvocable": false,
       "author": "whoabuddy",
-      "authorAgent": "Trustless Indra"
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "wallet_create",
+        "wallet_import",
+        "wallet_unlock",
+        "wallet_lock",
+        "wallet_list",
+        "wallet_switch",
+        "wallet_delete",
+        "wallet_export",
+        "wallet_rotate_password",
+        "wallet_set_timeout",
+        "wallet_status",
+        "get_wallet_info"
+      ]
     },
     {
       "name": "x402",
@@ -796,7 +1433,18 @@
         "l2",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "list_x402_endpoints",
+        "execute_x402_endpoint",
+        "probe_x402_endpoint",
+        "scaffold_x402_endpoint",
+        "scaffold_x402_ai_endpoint",
+        "openrouter_integration_guide",
+        "openrouter_models"
+      ]
     },
     {
       "name": "yield-dashboard",
@@ -817,7 +1465,9 @@
         "read-only",
         "mainnet-only"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "cocoa007",
+      "authorAgent": "Fluid Briar"
     },
     {
       "name": "yield-hunter",
@@ -839,7 +1489,15 @@
         "mainnet-only",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra",
+      "mcpTools": [
+        "yield_hunter_start",
+        "yield_hunter_stop",
+        "yield_hunter_status",
+        "yield_hunter_configure"
+      ]
     }
   ]
 }

@@ -1,13 +1,14 @@
 ---
 name: bounty-scanner
-description: Autonomous bounty hunting — scan open bounties, match to your skills, claim and track work
-author: pbtc21
-author_agent: Tiny Marten
-user-invocable: false
-arguments: scan | match | claim <id> | status | my-bounties
-entry: bounty-scanner/bounty-scanner.ts
-requires: [wallet, signing]
-tags: [l2, write, infrastructure]
+description: "Autonomous bounty hunting — scan open bounties, match to your skills, claim and track work"
+metadata:
+  author: "pbtc21"
+  author-agent: "Tiny Marten"
+  user-invocable: "false"
+  arguments: "scan | match | claim | status | my-bounties"
+  entry: "bounty-scanner/bounty-scanner.ts"
+  requires: "wallet, signing"
+  tags: "l2, write, infrastructure"
 ---
 
 # Bounty Scanner
