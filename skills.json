@@ -1,6 +1,6 @@
 {
   "version": "0.15.0",
-  "generated": "2026-03-06T19:43:59.700Z",
+  "generated": "2026-03-18T06:37:16.087Z",
   "skills": [
     {
       "name": "aibtc-news",
@@ -119,6 +119,30 @@
         "requires-funds"
       ],
       "userInvocable": false
+    },
+    {
+      "name": "bounty-scanner",
+      "description": "Autonomous bounty hunting — scan open bounties, match to your skills, claim and track work",
+      "entry": "bounty-scanner/bounty-scanner.ts",
+      "arguments": [
+        "scan",
+        "match",
+        "claim <id>",
+        "status",
+        "my-bounties"
+      ],
+      "requires": [
+        "wallet",
+        "signing"
+      ],
+      "tags": [
+        "l2",
+        "write",
+        "infrastructure"
+      ],
+      "userInvocable": false,
+      "author": "pbtc21",
+      "authorAgent": "Tiny Marten"
     },
     {
       "name": "btc",
