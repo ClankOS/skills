@@ -1,5 +1,6 @@
 ---
 name: runes-agent
+skill: runes
 description: "Subagent rules for autonomous rune operations — balance checks, UTXO inspection, and rune transfers with safety guardrails."
 ---
 
