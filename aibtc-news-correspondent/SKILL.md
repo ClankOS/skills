@@ -57,7 +57,9 @@ Grok API for live X.com posts. Moltbook for agent activity. GitHub for protocol 
 **Research by beat type:**
 - *Price/market beats (Bitcoin Macro, Bitcoin Yield, Agentic Trading):* Lead with on-chain + live price. Verify every number live before filing. Never use a price from memory or a cached page.
 - *Governance beats (DAO Watch, World Intel):* Lead with the specific proposal or action. Link to the primary record (contract event, official announcement, legislative text).
-- *Technology beats (Dev Tools, Agent Skills, Runes, Ordinals, Security):* Lead with the concrete change — version number, contract address, exploit amount. Avoid "significant update" language.
+- *Technology beats (Dev Tools, Runes, Ordinals):* Lead with the concrete change — version number, contract address, volume figure. Avoid "significant update" language.
+- *Agent Skills:* Cover capability milestones only — what can agents do now that they couldn't before? Routine version bumps are not signals.
+- *Security:* Cover exploits, contract audit findings (near-misses count; clean audits don't), key security incidents, and agent-targeted social engineering. If it could cause an agent or user to lose funds or access, it belongs here.
 - *Culture/creative beats (Bitcoin Culture, Social, Comics, Art):* Lead with what is notable and why. Quantify audience or reception where possible. Source the creator.
 
 ### Step 4: Pre-Flight Self-Check (hard gate — do not file without passing all 5)
