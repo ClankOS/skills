@@ -46,7 +46,7 @@ interface MarketConfig {
 
 const MARKETS: Record<string, MarketConfig> = {
   "sbtc-stx": {
-    contractName: "sbtc-stx-jingswap",
+    contractName: "sbtc-stx-jing",
     tokenBSymbol: "STX",
     tokenBDecimals: 6,
     depositFn: "deposit-stx",
@@ -54,7 +54,7 @@ const MARKETS: Record<string, MarketConfig> = {
     priceUnit: "STX/BTC",
   },
   "sbtc-usdcx": {
-    contractName: "sbtc-usdcx-jingswap",
+    contractName: "sbtc-usdcx-jing",
     tokenBSymbol: "USDCx",
     tokenBDecimals: 6,
     tokenBContract: "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx",
@@ -75,13 +75,13 @@ function getMarket(market?: string): MarketConfig {
 }
 
 function apiContractParam(market: MarketConfig): string {
-  return market.contractName === "sbtc-stx-jingswap" ? "" : `?contract=${market.contractName}`;
+  return market.contractName === "sbtc-stx-jing" ? "" : `?contract=${market.contractName}`;
 }
 
 const PYTH_CONTRACTS = {
   storage: { address: "SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y", name: "pyth-storage-v4" },
   decoder: { address: "SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y", name: "pyth-pnau-decoder-v3" },
-  wormhole: { address: "SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y", name: "wormhole-core-v2" },
+  wormhole: { address: "SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y", name: "wormhole-core-v4" },
 };
 
 // ---------------------------------------------------------------------------
@@ -110,10 +110,18 @@ async function assertDepositPhase(market: MarketConfig): Promise<any> {
   return data;
 }
 
-async function assertNotDepositPhase(market: MarketConfig): Promise<any> {
+async function assertSettlePhase(market: MarketConfig): Promise<any> {
   const data = await jingswapGet(`/api/auction/cycle-state${apiContractParam(market)}`);
   if (data.phase === 0) {
     throw new Error("Cannot settle/cancel-cycle — auction is still in deposit phase");
+  }
+  if (data.phase === 1) {
+    const BUFFER_BLOCKS = 30;
+    const blocksIntoBuffer = data.blocksElapsed - 150;
+    const blocksRemaining = Math.max(0, BUFFER_BLOCKS - blocksIntoBuffer);
+    throw new Error(
+      `Cannot settle — auction is in buffer phase. Wait ${blocksRemaining} more blocks (~${blocksRemaining * 2}s) before settling.`
+    );
   }
   return data;
 }
@@ -443,7 +451,7 @@ program
         contractName: m.contractName,
         functionName: "close-deposits",
         functionArgs: [],
-        postConditionMode: PostConditionMode.Allow,
+        postConditionMode: PostConditionMode.Deny,
         postConditions: [],
       });
 
@@ -468,7 +476,7 @@ program
   .action(async (opts: { market?: string }) => {
     try {
       const m = getMarket(opts.market);
-      const data = await assertNotDepositPhase(m);
+      const data = await assertSettlePhase(m);
       const account = await getAccount();
 
       const result = await callContract(account, {
@@ -501,7 +509,7 @@ program
   .action(async (opts: { market?: string }) => {
     try {
       const m = getMarket(opts.market);
-      const data = await assertNotDepositPhase(m);
+      const data = await assertSettlePhase(m);
       const vaas = await jingswapGet("/api/auction/pyth-vaas");
       const account = await getAccount();
 
@@ -541,7 +549,7 @@ program
   .action(async (opts: { market?: string }) => {
     try {
       const m = getMarket(opts.market);
-      const data = await assertNotDepositPhase(m);
+      const data = await assertSettlePhase(m);
       const account = await getAccount();
 
       const result = await callContract(account, {

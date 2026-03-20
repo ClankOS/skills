@@ -18,8 +18,8 @@ Blind batch auction for swapping sBTC against a quote token on Stacks. Two marke
 
 | Market | Contract | Quote Token |
 |--------|----------|-------------|
-| `sbtc-stx` (default) | `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-stx-jingswap` | STX |
-| `sbtc-usdcx` | `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-usdcx-jingswap` | USDCx |
+| `sbtc-stx` (default) | `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-stx-jing` | STX |
+| `sbtc-usdcx` | `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.sbtc-usdcx-jing` | USDCx |
 
 Each auction cycle has three phases: deposit, buffer, settle. Anyone can participate by depositing on either side, and anyone can trigger close/settle/cancel transitions.
 
