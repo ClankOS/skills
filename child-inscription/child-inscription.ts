@@ -10,9 +10,9 @@
 import { Command } from "commander";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
-import { NETWORK, getMempoolTxUrl } from "../src/lib/config/networks.js";
+import { NETWORK } from "../src/lib/config/networks.js";
 import { getWalletManager } from "../src/lib/services/wallet-manager.js";
-import { MempoolApi } from "../src/lib/services/mempool-api.js";
+import { MempoolApi, getMempoolTxUrl } from "../src/lib/services/mempool-api.js";
 import {
   buildChildCommitTransaction,
   buildChildRevealTransaction,
