@@ -246,7 +246,8 @@ export function buildCommitTransaction(
 
   // Create P2TR output from the reveal script
   // For script path spending, we use the internal pubkey and the script tree
-  const p2trReveal = btc.p2tr(xOnlyPubkey, revealScriptData, btcNetwork);
+  // 4th arg `true` required for micro-ordinals unknown leaf scripts
+  const p2trReveal = btc.p2tr(xOnlyPubkey, revealScriptData, btcNetwork, true);
 
   if (!p2trReveal.address) {
     throw new Error("Failed to generate reveal address");
@@ -408,9 +409,14 @@ export function buildRevealTransaction(
   // Estimate reveal transaction size
   // 1 input (Taproot with inscription witness) + 1 output (recipient)
   const revealInputSize = P2TR_INPUT_BASE_VBYTES;
+  // Use the tap leaf script (which contains the inscription body) for witness size,
+  // not the P2TR output script (which is tiny). tapLeafScript is an array of
+  // [controlBlock, leafScript] tuples; we use the leafScript from the first entry.
+  const WITNESS_OVERHEAD_VBYTES = 80; // Control block + script + protocol framing
+  const leafScriptSize = revealScript.tapLeafScript?.[0]?.[1]?.length || 0;
   const revealWitnessSize = Math.ceil(
-    (revealScript.script?.byteLength || 0) / 4
-  );
+    ((leafScriptSize || revealScript.script?.byteLength || 0) / 4) * 1.25
+  ) + WITNESS_OVERHEAD_VBYTES;
   const revealTxSize =
     TX_OVERHEAD_VBYTES + revealInputSize + revealWitnessSize + P2TR_OUTPUT_VBYTES;
   const revealFee = Math.ceil(revealTxSize * feeRate);
@@ -426,7 +432,7 @@ export function buildRevealTransaction(
 
   // Build the reveal transaction
   const btcNetwork = getBtcNetwork(network);
-  const tx = new btc.Transaction();
+  const tx = new btc.Transaction({ allowUnknownOutputs: true, allowUnknownInputs: true });
 
   // Add input spending from commit transaction
   // For Taproot script path spending, we need to provide the witness data
@@ -438,7 +444,7 @@ export function buildRevealTransaction(
       amount: BigInt(commitAmount),
     },
     // Include taproot script path info for script-path spending
-    ...revealScript.tapLeafScript,
+    tapLeafScript: revealScript.tapLeafScript,
   });
 
   // Add output to recipient (Taproot address)
