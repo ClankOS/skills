@@ -266,7 +266,7 @@ program
         }
 
         // Validate parent ownership
-        const parentInfo = await lookupParentInscription(opts.parentId);
+        const parentInfo = await lookupParentInscription(opts.parentId, NETWORK);
         if (parentInfo.address !== sessionInfo.taprootAddress) {
           throw new Error(
             `Parent inscription is owned by ${parentInfo.address}, ` +
@@ -422,7 +422,7 @@ program
         }
 
         // Validate parent is still owned by this wallet
-        const parentInfo = await lookupParentInscription(state.parentInscriptionId);
+        const parentInfo = await lookupParentInscription(state.parentInscriptionId, NETWORK);
         if (parentInfo.address !== sessionInfo.taprootAddress) {
           throw new Error(
             `Parent inscription is no longer at your Taproot address. ` +
@@ -466,6 +466,7 @@ program
           recipientAddress: sessionInfo.taprootAddress,
           feeRate: actualFeeRate,
           network: NETWORK,
+          inscription,
         });
 
         // Sign both inputs:

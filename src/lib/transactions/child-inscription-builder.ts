@@ -130,6 +130,8 @@ export interface BuildChildRevealTransactionOptions {
   feeRate: number;
   /** Network */
   network: Network;
+  /** Inscription data (needed for accurate witness size estimation) */
+  inscription: InscriptionData;
 }
 
 /**
@@ -167,63 +169,81 @@ function toXOnly(compressedPubKey: Uint8Array): Uint8Array {
 // ---------------------------------------------------------------------------
 
 /**
- * Look up parent inscription details from the Hiro Ordinals API
+ * Look up parent inscription details from the Unisat Indexer API
  *
  * Returns the current owner address and the UTXO (txid, vout, value) holding
  * the inscription. The caller must verify that the owner address matches the
  * wallet's Taproot address before proceeding with the child inscription.
  *
  * @param inscriptionId - Inscription ID in format {txid}i{index}
+ * @param network - Network to query (mainnet or testnet)
  * @returns Parent inscription info including owner address and UTXO details
  * @throws Error if the inscription is not found or the API request fails
  */
 export async function lookupParentInscription(
-  inscriptionId: string
+  inscriptionId: string,
+  network: Network
 ): Promise<ParentInscriptionInfo> {
-  const url = `https://api.hiro.so/ordinals/v1/inscriptions/${inscriptionId}`;
-  const response = await fetch(url);
+  const apiBase =
+    network === "mainnet"
+      ? "https://open-api.unisat.io"
+      : "https://open-api-testnet.unisat.io";
+
+  const url = `${apiBase}/v1/indexer/inscription/info/${inscriptionId}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (process.env.UNISAT_API_KEY) {
+    headers["Authorization"] = `Bearer ${process.env.UNISAT_API_KEY}`;
+  }
+
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
     if (response.status === 404) {
       throw new Error(`Inscription not found: ${inscriptionId}`);
     }
     throw new Error(
-      `Hiro Ordinals API error: ${response.status} ${response.statusText}`
+      `Unisat API error: ${response.status} ${response.statusText}`
     );
   }
 
-  const data = (await response.json()) as {
-    address: string;
-    output: string; // format: "txid:vout"
-    value: number;
+  const json = (await response.json()) as {
+    code: number;
+    msg: string;
+    data: {
+      address: string;
+      utxo: {
+        txid: string;
+        vout: number;
+        satoshi: number;
+      };
+    };
   };
 
-  if (!data.address || !data.output) {
+  if (json.code !== 0) {
+    throw new Error(`Unisat API error: ${json.msg}`);
+  }
+
+  const { address, utxo } = json.data;
+
+  if (!address || !utxo?.txid) {
     throw new Error(
-      `Unexpected response from Hiro Ordinals API for inscription ${inscriptionId}`
+      `Unexpected response from Unisat API for inscription ${inscriptionId}`
     );
   }
 
-  const parts = data.output.split(":");
-  if (parts.length !== 2) {
+  if (utxo.txid.length !== 64 || utxo.vout < 0) {
     throw new Error(
-      `Cannot parse output field from Hiro API: "${data.output}". Expected "txid:vout" format.`
-    );
-  }
-  const txid = parts[0];
-  const vout = parseInt(parts[1], 10);
-
-  if (!txid || txid.length !== 64 || isNaN(vout) || vout < 0) {
-    throw new Error(
-      `Invalid output format from Hiro API: "${data.output}"`
+      `Invalid UTXO data from Unisat API: txid=${utxo.txid}, vout=${utxo.vout}`
     );
   }
 
   return {
-    address: data.address,
-    txid,
-    vout,
-    value: data.value,
+    address,
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.satoshi,
   };
 }
 
@@ -476,6 +496,7 @@ export function buildChildRevealTransaction(
     recipientAddress,
     feeRate,
     network,
+    inscription,
   } = options;
 
   // Validate inputs
@@ -498,8 +519,9 @@ export function buildChildRevealTransaction(
   const btcNetwork = getBtcNetwork(network);
 
   // Estimate reveal tx size: 2 P2TR inputs + 2 P2TR outputs + inscription witness
+  // Witness data is discounted at 1/4 weight, plus overhead for control block etc.
   const revealWitnessSize = Math.ceil(
-    (revealScript.script?.byteLength || 0) / 4
+    inscription.body.length / 4 * 1.25 + WITNESS_OVERHEAD_VBYTES
   );
   const revealTxSize =
     TX_OVERHEAD_VBYTES +
