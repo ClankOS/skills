@@ -588,6 +588,7 @@ export function buildChildRevealTransaction(
       script: parentP2tr.script,
       amount: BigInt(parentUtxo.value),
     },
+    tapInternalKey: xOnlyParentPubKey,
   });
 
   // Output 0: child inscription (dust amount, inscription is in the witness of input 0)
