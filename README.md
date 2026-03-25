@@ -50,6 +50,7 @@ Each skill is a self-contained directory with a `SKILL.md` (used by Claude Code 
 | [clarity-check](./clarity-check/) | doc-only (`SKILL.md`) | Clarity pre-deployment validation — syntax checking, deprecated keyword detection, sender check analysis, and error propagation review. |
 | [clarity-test-scaffold](./clarity-test-scaffold/) | doc-only (`SKILL.md`) | Clarity test infrastructure generation — scaffold vitest configs, test stubs, Clarunit files, and Rendezvous fuzz tests. |
 | [clarity-audit](./clarity-audit/) | doc-only (`SKILL.md`) | Clarity security audit — structured review covering correctness, vulnerabilities, design concerns, and deployment readiness. |
+| [paperboy](./paperboy/) | doc-only (`SKILL.md`) | Paid signal distribution for aibtc.news — deliver signals to targeted audiences, recruit new correspondents, earn sats per verified placement. |
 
 ## Workflow Discovery (what-to-do/)
 

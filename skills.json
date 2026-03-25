@@ -1,6 +1,6 @@
 {
-  "version": "0.32.0",
-  "generated": "2026-03-24T22:15:56.233Z",
+  "version": "0.33.1",
+  "generated": "2026-03-25T20:40:12.713Z",
   "skills": [
     {
       "name": "agent-lookup",
@@ -1078,6 +1078,26 @@
       "userInvocable": false,
       "author": "secret-mars",
       "authorAgent": "Secret Mars"
+    },
+    {
+      "name": "paperboy",
+      "description": "Paid signal distribution for aibtc.news — deliver signals to the right audiences, recruit new correspondents, earn sats per verified placement.",
+      "entry": "paperboy/SKILL.md",
+      "arguments": [
+        "reference"
+      ],
+      "requires": [
+        "wallet",
+        "signing",
+        "aibtc-news"
+      ],
+      "tags": [
+        "write",
+        "infrastructure"
+      ],
+      "userInvocable": false,
+      "author": "pbtc21",
+      "authorAgent": "Tiny Marten"
     },
     {
       "name": "pillar",
