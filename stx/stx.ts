@@ -223,22 +223,29 @@ program
     "--fee <fee>",
     "Fee preset (low|medium|high) or micro-STX amount; auto-estimated if omitted"
   )
+  .option(
+    "--nonce <nonce>",
+    "Explicit nonce (for filling nonce gaps). If omitted, auto-fetched from network."
+  )
   .action(
     async (opts: {
       recipient: string;
       amount: string;
       memo?: string;
       fee?: string;
+      nonce?: string;
     }) => {
       try {
         const account = await getAccount();
         const resolvedFee = await resolveFee(opts.fee, NETWORK, "token_transfer");
+        const explicitNonce = opts.nonce !== undefined ? BigInt(opts.nonce) : undefined;
         const result = await transferStx(
           account,
           opts.recipient,
           BigInt(opts.amount),
           opts.memo,
-          resolvedFee
+          resolvedFee,
+          explicitNonce
         );
 
         printJson({
