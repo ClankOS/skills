@@ -8,11 +8,15 @@
 
 import { Command } from "commander";
 import { getWalletManager } from "../src/lib/services/wallet-manager.js";
-import { getStxBalance } from "../src/lib/services/hiro-api.js";
+import { getStxBalance, getHiroApi } from "../src/lib/services/hiro-api.js";
 import { getWalletAddress } from "../src/lib/services/x402.service.js";
 import { NETWORK } from "../src/lib/config/networks.js";
 import type { Network } from "../src/lib/config/networks.js";
 import { printJson, handleError } from "../src/lib/utils/cli.js";
+import {
+  getAddressState,
+} from "../src/lib/services/nonce-tracker.js";
+import { getNextNonce, transferStx } from "../src/lib/transactions/builder.js";
 
 // ---------------------------------------------------------------------------
 // Program
@@ -616,6 +620,105 @@ program
           stx: stxLocked + " STX",
           microStx: balance.stxLocked,
         },
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// nonce-health
+// ---------------------------------------------------------------------------
+
+program
+  .command("nonce-health")
+  .description("Compare local nonce tracker state vs chain and diagnose gaps")
+  .option("--address <address>", "Stacks address to check (uses active wallet if omitted)")
+  .action(async (opts: { address?: string }) => {
+    try {
+      let address = opts.address;
+      if (!address) {
+        address = await getWalletAddress();
+      }
+      const localState = await getAddressState(address);
+      const hiroApi = getHiroApi(NETWORK);
+      const nonceInfo = await hiroApi.getNonceInfo(address);
+      const isStale = localState
+        ? Date.now() - new Date(localState.lastUpdated).getTime() > 90 * 1000
+        : true;
+      const issues: string[] = [];
+      if (!localState) issues.push("No local nonce state — will sync from chain on next tx");
+      if (isStale) issues.push("Local state is stale (>90s old) — will re-sync from chain");
+      if (nonceInfo.detected_missing_nonces.length > 0) {
+        issues.push(`Detected missing nonces: [${nonceInfo.detected_missing_nonces.join(", ")}] — use nonce-fill-gap to resolve`);
+      }
+      printJson({
+        address,
+        local: localState
+          ? {
+              lastUsedNonce: localState.lastUsedNonce,
+              lastUpdated: localState.lastUpdated,
+              pendingCount: localState.pending.length,
+              isStale,
+            }
+          : null,
+        chain: {
+          possibleNextNonce: nonceInfo.possible_next_nonce,
+          lastExecutedNonce: nonceInfo.last_executed_tx_nonce,
+          lastMempoolNonce: nonceInfo.last_mempool_tx_nonce,
+          missingNonces: nonceInfo.detected_missing_nonces,
+          mempoolNonces: nonceInfo.mempool_nonces,
+        },
+        healthy: issues.length === 0,
+        issues,
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// nonce-fill-gap
+// ---------------------------------------------------------------------------
+
+// Standard gap-fill target (not self — Stacks rejects self-transfers).
+// cant-be-evil.stx resolves to SP000000000000000000002Q6VF78 (Stacks burn address).
+const GAP_FILL_TARGET = "SP000000000000000000002Q6VF78";
+
+program
+  .command("nonce-fill-gap")
+  .description(
+    "Send 1 uSTX at a specific nonce to unblock a stuck queue. Last-resort tool — Nakamoto blocks (3-5s) usually self-resolve gaps."
+  )
+  .requiredOption("--nonce <nonce>", "The missing nonce to fill (integer)")
+  .option("--wallet <name>", "Wallet name (uses active wallet if omitted)")
+  .option("--password <password>", "Wallet password (prompts if omitted)")
+  .action(async (opts: { nonce: string; wallet?: string; password?: string }) => {
+    try {
+      const gapNonce = parseInt(opts.nonce, 10);
+      if (isNaN(gapNonce) || gapNonce < 0) {
+        throw new Error("--nonce must be a non-negative integer");
+      }
+      const walletManager = getWalletManager();
+      const unlockedWallet = walletManager.getUnlockedWallet();
+      if (!unlockedWallet) {
+        throw new Error("No wallet unlocked. Run: wallet unlock --name <name> --password <pass>");
+      }
+      const result = await transferStx(
+        unlockedWallet,
+        GAP_FILL_TARGET,
+        1n, // 1 uSTX
+        "nonce-gap-fill",
+        undefined, // auto-estimate fee
+        BigInt(gapNonce) // explicit nonce override
+      );
+      printJson({
+        success: true,
+        message: `Gap-fill sent at nonce ${gapNonce}`,
+        txid: result.txid,
+        target: GAP_FILL_TARGET,
+        amount: "1 uSTX",
+        nonce: gapNonce,
       });
     } catch (error) {
       handleError(error);

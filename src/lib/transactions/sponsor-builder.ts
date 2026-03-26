@@ -6,6 +6,7 @@ import {
 import { getStacksNetwork, type Network } from "../config/networks.js";
 import { getSponsorRelayUrl, getSponsorApiKey } from "../config/sponsor.js";
 import type { Account, ContractCallOptions, TransferResult } from "./builder.js";
+import { getNextNonce, advancePendingNonce } from "./builder.js";
 
 export interface SponsoredTransferOptions {
   senderKey: string;
@@ -13,6 +14,8 @@ export interface SponsoredTransferOptions {
   amount: bigint;
   memo?: string;
   network: Network;
+  /** Optional sender address for nonce tracking. */
+  senderAddress?: string;
 }
 
 export interface SponsorRelayResponse {
@@ -70,6 +73,8 @@ export async function sponsoredContractCall(
   const apiKey = resolveSponsorApiKey(account);
 
   const networkName = getStacksNetwork(network);
+  const nonce = await getNextNonce(account.address, network);
+
   const transaction = await makeContractCall({
     contractAddress: options.contractAddress,
     contractName: options.contractName,
@@ -77,6 +82,7 @@ export async function sponsoredContractCall(
     functionArgs: options.functionArgs,
     senderKey: account.privateKey,
     network: networkName,
+    nonce,
     postConditionMode: options.postConditionMode || PostConditionMode.Deny,
     postConditions: options.postConditions || [],
     sponsored: true,
@@ -94,6 +100,8 @@ export async function sponsoredContractCall(
     throw new Error("Sponsor relay succeeded but returned no txid");
   }
 
+  advancePendingNonce(account.address, nonce, response.txid);
+
   return { txid: response.txid, rawTx: serializedTx };
 }
 
@@ -106,6 +114,10 @@ export async function transferStxSponsored(
 ): Promise<SponsorRelayResponse> {
   const networkName = getStacksNetwork(options.network);
 
+  const nonce = options.senderAddress
+    ? await getNextNonce(options.senderAddress, options.network)
+    : undefined;
+
   const transaction = await makeSTXTokenTransfer({
     recipient: options.recipient,
     amount: options.amount,
@@ -114,10 +126,17 @@ export async function transferStxSponsored(
     memo: options.memo || "",
     sponsored: true,
     fee: 0n,
+    ...(nonce !== undefined && { nonce }),
   });
 
   const serializedTx = transaction.serialize();
-  return submitToSponsorRelay(serializedTx, options.network, apiKey);
+  const response = await submitToSponsorRelay(serializedTx, options.network, apiKey);
+
+  if (response.success && response.txid && options.senderAddress && nonce !== undefined) {
+    advancePendingNonce(options.senderAddress, nonce, response.txid);
+  }
+
+  return response;
 }
 
 /**

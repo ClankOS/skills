@@ -28,6 +28,14 @@ export interface AccountInfo {
   nonceProof: string;
 }
 
+export interface NonceInfo {
+  last_mempool_tx_nonce: number | null;
+  last_executed_tx_nonce: number | null;
+  possible_next_nonce: number;
+  detected_missing_nonces: number[];
+  mempool_nonces: number[];
+}
+
 export interface StxBalance {
   balance: string;
   total_sent: string;
@@ -411,6 +419,10 @@ export class HiroApiService {
   async getAccountNonce(address: string): Promise<number> {
     const info = await this.getAccountInfo(address);
     return info.nonce;
+  }
+
+  async getNonceInfo(address: string): Promise<NonceInfo> {
+    return this.fetch<NonceInfo>(`/extended/v1/address/${address}/nonces`);
   }
 
   // ==========================================================================

@@ -460,7 +460,6 @@ program
         const { createFungiblePostCondition } = await import(
           "../src/lib/transactions/post-conditions.js"
         );
-        const { getHiroApi } = await import("../src/lib/services/hiro-api.js");
 
         const paymentRequired = decodePaymentRequired(paymentHeader);
         if (
@@ -487,10 +486,9 @@ program
           amount
         );
 
-        // Get current nonce
-        const hiro = getHiroApi(NETWORK);
-        const accountInfo = await hiro.getAccountInfo(account.address);
-        const nonce = BigInt(accountInfo.nonce);
+        // Get nonce from shared tracker (symmetric with builder.ts path, skills#240)
+        const { getNextNonce: getNonce, advancePendingNonce } = await import("../src/lib/transactions/builder.js");
+        const nonce = await getNonce(account.address, NETWORK);
 
         const transaction = await makeContractCall({
           contractAddress,
@@ -543,6 +541,9 @@ program
           const { decodePaymentResponse } = await import("../src/lib/utils/x402-protocol.js");
           const settlement = decodePaymentResponse(settlementHeader);
           const txid = settlement?.transaction;
+
+          // Record nonce used in shared tracker (skills#240)
+          advancePendingNonce(account.address, nonce, txid ?? "");
 
           printJson({
             success: true,

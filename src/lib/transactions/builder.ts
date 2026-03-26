@@ -10,6 +10,70 @@ import {
 import { hexToBytes } from "@stacks/common";
 import { getStacksNetwork, getApiBaseUrl, type Network } from "../config/networks.js";
 import type { WalletAddresses } from "../utils/storage.js";
+import { getHiroApi } from "../services/hiro-api.js";
+import {
+  getTrackedNonce,
+  recordNonceUsed,
+  resetTrackedNonce,
+  reconcileWithChain,
+} from "../services/nonce-tracker.js";
+
+// ---------------------------------------------------------------------------
+// Nonce tracking (unified via SharedNonceTracker, skills#240)
+//
+// All nonce state is managed by src/lib/services/nonce-tracker.ts which
+// persists to ~/.aibtc/nonce-state.json. Shared with MCP server
+// (aibtcdev/aibtc-mcp-server).
+// ---------------------------------------------------------------------------
+
+/**
+ * Reset the pending nonce for an address (called on wallet unlock/lock/switch
+ * so the counter re-syncs with the chain on the next transaction).
+ */
+export async function resetPendingNonce(address: string): Promise<void> {
+  await resetTrackedNonce(address);
+}
+
+/**
+ * Get the next nonce for an address.
+ *
+ * Algorithm:
+ * 1. Check the shared nonce tracker (no network call).
+ * 2. Fetch possible_next_nonce from Hiro and reconcile.
+ * 3. Return max(chain, local) for strictly increasing nonces during rapid sends.
+ */
+export async function getNextNonce(address: string, network: Network): Promise<bigint> {
+  const localNext = await getTrackedNonce(address);
+  try {
+    const hiroApi = getHiroApi(network);
+    const nonceInfo = await hiroApi.getNonceInfo(address);
+    const networkNext = BigInt(nonceInfo.possible_next_nonce);
+    await reconcileWithChain(address, nonceInfo.possible_next_nonce);
+    if (nonceInfo.detected_missing_nonces && nonceInfo.detected_missing_nonces.length > 0) {
+      console.warn(
+        `[nonce] detected_missing_nonces for ${address}: [${nonceInfo.detected_missing_nonces.join(", ")}]. ` +
+          `Use 'wallet nonce-fill-gap --nonce <N>' to resolve.`
+      );
+    }
+    const localNextBig = localNext !== null ? BigInt(localNext) : 0n;
+    return networkNext > localNextBig ? networkNext : localNextBig;
+  } catch (err) {
+    if (localNext !== null && localNext > 0) {
+      console.warn(`[nonce] API call failed, using local tracked nonce (${localNext}) for ${address}:`, err);
+      return BigInt(localNext);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Record that a nonce was used (fire-and-forget, non-blocking).
+ */
+export function advancePendingNonce(address: string, nonce: bigint, txid = ""): void {
+  recordNonceUsed(address, Number(nonce), txid).catch((err) => {
+    console.error(`[nonce] Failed to record nonce ${nonce} for ${address}:`, err);
+  });
+}
 
 export interface Account extends WalletAddresses {
   privateKey: string;
@@ -70,15 +134,19 @@ export interface ContractDeployOptions {
 /**
  * Transfer STX tokens to a recipient
  * @param fee Optional fee in micro-STX. If omitted, fee is auto-estimated.
+ * @param explicitNonce Optional nonce override (used by nonce-fill-gap to target a specific nonce).
  */
 export async function transferStx(
   account: Account,
   recipient: string,
   amount: bigint,
   memo?: string,
-  fee?: bigint
+  fee?: bigint,
+  explicitNonce?: bigint
 ): Promise<TransferResult> {
   const networkName = getStacksNetwork(account.network);
+
+  const nonce = explicitNonce !== undefined ? explicitNonce : await getNextNonce(account.address, account.network);
 
   const transaction = await makeSTXTokenTransfer({
     recipient,
@@ -86,6 +154,7 @@ export async function transferStx(
     senderKey: account.privateKey,
     network: networkName,
     memo: memo || "",
+    nonce,
     ...(fee !== undefined && { fee }),
   });
 
@@ -99,6 +168,8 @@ export async function transferStx(
       `Broadcast failed: ${broadcastResponse.error} - ${broadcastResponse.reason}`
     );
   }
+
+  advancePendingNonce(account.address, nonce, broadcastResponse.txid);
 
   return {
     txid: broadcastResponse.txid,
@@ -115,6 +186,8 @@ export async function callContract(
 ): Promise<TransferResult> {
   const networkName = getStacksNetwork(account.network);
 
+  const nonce = await getNextNonce(account.address, account.network);
+
   const transaction = await makeContractCall({
     contractAddress: options.contractAddress,
     contractName: options.contractName,
@@ -122,6 +195,7 @@ export async function callContract(
     functionArgs: options.functionArgs,
     senderKey: account.privateKey,
     network: networkName,
+    nonce,
     postConditionMode: options.postConditionMode || PostConditionMode.Deny,
     postConditions: options.postConditions || [],
     ...(options.fee !== undefined && { fee: options.fee }),
@@ -138,6 +212,8 @@ export async function callContract(
     );
   }
 
+  advancePendingNonce(account.address, nonce, broadcastResponse.txid);
+
   return {
     txid: broadcastResponse.txid,
     rawTx: transaction.serialize(),
@@ -153,11 +229,14 @@ export async function deployContract(
 ): Promise<TransferResult> {
   const networkName = getStacksNetwork(account.network);
 
+  const nonce = await getNextNonce(account.address, account.network);
+
   const transaction = await makeContractDeploy({
     contractName: options.contractName,
     codeBody: options.codeBody,
     senderKey: account.privateKey,
     network: networkName,
+    nonce,
     ...(options.fee !== undefined && { fee: options.fee }),
   });
 
@@ -171,6 +250,8 @@ export async function deployContract(
       `Broadcast failed: ${broadcastResponse.error} - ${broadcastResponse.reason}`
     );
   }
+
+  advancePendingNonce(account.address, nonce, broadcastResponse.txid);
 
   return {
     txid: broadcastResponse.txid,
