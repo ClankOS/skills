@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.36.0](https://github.com/aibtcdev/skills/compare/skills-v0.35.0...skills-v0.36.0) (2026-03-28)
+
+
+### Features
+
+* **hodlmm-risk:** add HODLMM volatility risk monitoring skill ([#251](https://github.com/aibtcdev/skills/issues/251)) ([39bb078](https://github.com/aibtcdev/skills/commit/39bb07849cf9485eb34e349ca790f22921edbf6b))
+* **nonce-manager:** add cross-process nonce oracle with acquire/release lifecycle ([#250](https://github.com/aibtcdev/skills/issues/250)) ([33f6e0b](https://github.com/aibtcdev/skills/commit/33f6e0bc497bc1a76cf42840520357d7838e61cb))
+* **zest-yield-manager:** add Zest yield management skill ([#246](https://github.com/aibtcdev/skills/issues/246)) ([07f0df0](https://github.com/aibtcdev/skills/commit/07f0df0dceb76102ae7473335759a5c43e5a6568))
+
+
+### Bug Fixes
+
+* **runes:** add erc8004 AGENT.md and fix silent rune burn on partial transfers ([#244](https://github.com/aibtcdev/skills/issues/244)) ([e3b4fd3](https://github.com/aibtcdev/skills/commit/e3b4fd36d0e3f18682b3289c32d1a0b8f5a911ac))
+
 ## [0.35.0](https://github.com/aibtcdev/skills/compare/skills-v0.34.0...skills-v0.35.0) (2026-03-26)
 
 
