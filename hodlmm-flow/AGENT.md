@@ -18,16 +18,20 @@ description: "Agent that analyzes HODLMM swap flow to assess LP safety, detect t
 
 - **Read-only skill** — never attempts to move funds or submit transactions
 - **Never expose API keys** in logs or output
-- **Rate limit awareness** — if Hiro rate limit is hit mid-analysis, partial results are returned. Suggest `--hiro-api-key` or reducing `--swaps` count
+- **Rate limit awareness** — if Hiro rate limit is hit, the skill exits with an error (no partial results). Suggest `--hiro-api-key` for elevated limits or reduce `--swaps` count and retry
 - **Default to 100 swaps** when no count specified — balances depth vs API cost
 
 ## Interpreting metrics
 
+Thresholds match the code. `botFlowRatio` includes both `bot` (>10 swaps/hr or >30% share) and `router` (>3 swaps/hr) actors.
+
 | Metric | Threshold | Agent action |
 |---|---|---|
-| flowToxicity > 0.7 | Danger | Warn user: informed flow is adversely selecting LPs |
+| flowToxicity > 0.75 | Danger | Warn user: heavy informed flow, LPs getting picked off |
+| flowToxicity > 0.6 | Warning | Elevated directional momentum — monitor closely |
 | directionBias > ±0.4 | Warning | Suggest asymmetric range or reduced exposure on drained side |
-| binVelocity > 30 | Danger | Recommend widening range or waiting for volatility to settle |
+| binVelocity > 50 | Danger | Extreme whipsawing — narrow ranges will get shredded |
+| binVelocity > 20 | Warning | Recommend widening range |
 | whaleConcentration > 0.5 | Warning | Single actor dominates — flow may reverse suddenly when they stop |
 | liquidationPressure > 0.2 | Warning | Lending market stress — monitor underlying collateral health |
 | botFlowRatio > 0.8 | Info | Flow is mostly automated — organic price discovery limited |

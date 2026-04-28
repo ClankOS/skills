@@ -95,6 +95,7 @@ All outputs are JSON to stdout.
   "poolId": "dlmm_3",
   "pair": "STX/USDCx",
   "swapsAnalyzed": 100,
+  "partialSwaps": 3,
   "timeSpanHours": 4.2,
   "metrics": {
     "directionBias": -0.31,
@@ -128,6 +129,36 @@ All outputs are JSON to stdout.
 { "error": "descriptive message" }
 ```
 
+**Success (`--all` protocol-wide summary):**
+```json
+{
+  "status": "success",
+  "network": "mainnet",
+  "timestamp": "2026-04-28T10:00:00.000Z",
+  "mode": "protocol-wide",
+  "poolsAnalyzed": 8,
+  "poolsFailed": 0,
+  "protocolSafetyScore": 64,
+  "poolsWarning": null,
+  "pools": [
+    {
+      "poolId": "dlmm_3",
+      "pair": "STX/USDCx",
+      "swapsAnalyzed": 100,
+      "partialSwaps": 3,
+      "timeSpanHours": 4.2,
+      "safetyScore": 52,
+      "lpSafety": "caution",
+      "directionBias": -0.31,
+      "flowToxicity": 0.62,
+      "binVelocity": 12.5,
+      "topActor": "SP2V3J7G... (bot, 82.1%)"
+    }
+  ]
+}
+```
+`poolsWarning` is non-null if Bitflow has added new DLMM pools not covered by this build.
+
 ## Metrics reference
 
 | Metric | Range | What it measures |
@@ -136,14 +167,18 @@ All outputs are JSON to stdout.
 | Flow toxicity | [0, 1] | Consecutive same-direction ratio. >0.6 = informed flow adversely selecting LPs |
 | Bin velocity | bins/hour | Active bin change rate. Predicts how fast positions go out of range |
 | Whale concentration | [0, 1] | Herfindahl index on swap volume. >0.25 = concentrated, >0.5 = monopolistic |
-| Liquidation pressure | [0, 1] | Volume fraction from Zest `liquidate-with-swap` transactions |
-| Bot flow ratio | [0, 1] | Volume fraction from automated addresses (>10 swaps/hour or >30% of flow) |
+| Liquidation pressure | [0, 1] | Volume fraction from Zest liquidator-address transactions (sender prefix `SP16B5ZK...`) |
+| Bot flow ratio | [0, 1] | Volume fraction from automated addresses: bot (>10 swaps/hr or >30% of flow) + router (>3 swaps/hr) |
 
 ## Data source
 
 Swap data is sourced from Hiro API (`/extended/v1/address/{pool}/transactions` + `/extended/v1/tx/events`). Each swap transaction's DLMM core contract logs are parsed to extract per-bin-hop amounts (dx, dy), active bin IDs, callers, and swap direction.
 
-Bitflow does not currently expose swap history via their own API. This skill recommends they add a `/trades` or `/swaps` endpoint — they already have the data server-side. This would eliminate Hiro dependency and enable real-time flow monitoring.
+Bitflow's bff-api exposes per-pool activity via `GET /api/app/v1/pools/{pool_id}/activity`, which serves the full event stream (add / withdraw / swap). Per-swap records carry `dx`, `dy`, `amountIn`, `amountOut`, `binId`, `caller`, `actionTxId`, `blockHeight`, `timestamp`, and fee breakdowns. This skill reads from Hiro to stay independent of Bitflow's first-party endpoint and parse raw contract events directly; a future version may migrate to `/pools/{pool_id}/activity` for lower latency and simpler parsing.
+
+## Cache
+
+Results are cached per `(poolId, swapCount, window)` in `~/.hodlmm-flow-cache/` with a 5-minute TTL. Repeated calls within the TTL return instantly. Use `--no-cache` to force a fresh Hiro crawl.
 
 ## Known constraints
 

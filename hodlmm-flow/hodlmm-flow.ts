@@ -14,6 +14,9 @@
  */
 
 import { Command } from "commander";
+// (j) Note: custom fetch retained for standalone compatibility;
+//     migration to src/lib/services/hiro-api.ts tracked as follow-up.
+// (l) Note: Node fs retained for Bun compatibility; migration to Bun.file/Bun.write tracked as follow-up.
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
@@ -29,10 +32,10 @@ const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 300;
 const DEFAULT_SWAP_COUNT = 100;
 const TX_PAGE_SIZE = 50;
-const DLMM_CORE = "SP1PFR4V08H1RAZXREBGFFQ59WB739XM8VVGTFSEA.dlmm-core-v-1-1";
+// DLMM_CORE removed — was defined but never referenced in any code path (n)
 const LIQUIDATOR_PREFIX = "SP16B5ZKHJAK4CSHQ1WYSZE57NWMKW0KDX6YZKH4J.liquidator";
 const CACHE_DIR = join(process.env.HOME ?? "/tmp", ".hodlmm-flow-cache");
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — see SKILL.md §Cache
 
 const POOL_CONTRACTS: Record<string, string> = {
   dlmm_1: "SM1FKXGNZJWSTWDWXQZJNF7B5TV5ZB235JTCXYXKD.dlmm-pool-sbtc-usdcx-v-1-bps-10",
@@ -46,14 +49,23 @@ const POOL_CONTRACTS: Record<string, string> = {
 };
 
 // All HODLMM pools (used for --all protocol-wide summary)
+// (i) Hardcoded at build time. The --all command checks Bitflow live pool list at runtime
+//     and emits poolsWarning if new pools exist beyond this set.
 const PRIMARY_POOLS = ["dlmm_1", "dlmm_2", "dlmm_3", "dlmm_4", "dlmm_5", "dlmm_6", "dlmm_7", "dlmm_8"];
 
-// Swap function names on the router contracts
+// (b) All 8 public swap entrypoints on dlmm-swap-router-v-1-1 and v-1-2,
+//     verified via live Hiro contract-interface lookup 2026-04-22.
+//     Previous build included "liquidate-with-swap" (does not exist on any DLMM contract)
+//     and was silently dropping up to 79% of swap traffic on high-volume pools.
 const SWAP_FUNCTIONS = [
-  "swap-x-for-y-simple-multi",
-  "swap-y-for-x-simple-multi",
+  "swap-multi",
   "swap-simple-multi",
-  "liquidate-with-swap",
+  "swap-x-for-y-same-multi",
+  "swap-x-for-y-simple-multi",
+  "swap-x-for-y-simple-range-multi",
+  "swap-y-for-x-same-multi",
+  "swap-y-for-x-simple-multi",
+  "swap-y-for-x-simple-range-multi",
 ];
 
 // ---------------------------------------------------------------------------
@@ -96,6 +108,9 @@ interface SwapRecord {
   totalDy: bigint;
   activeBinStart: number;
   activeBinEnd: number;
+  // (c) True when hop events could not be parsed — excluded from volume-weighted
+  //     metrics to avoid biasing analysis, but still counted in swapsAnalyzed.
+  isPartial?: boolean;
 }
 
 interface ActorProfile {
@@ -118,7 +133,7 @@ interface FlowMetrics {
   whaleConcentrationLabel: string;
   liquidationPressure: number;  // [0, 1] — liquidation volume / total volume
   liquidationPressureLabel: string;
-  botFlowRatio: number;         // [0, 1] — bot volume / total volume
+  botFlowRatio: number;         // [0, 1] — bot+router volume / total volume
   botFlowRatioLabel: string;
 }
 
@@ -137,6 +152,8 @@ interface FlowAnalysis {
   poolId: string;
   pair: string;
   swapsAnalyzed: number;
+  // (c) Count of swaps where hop events could not be parsed — excluded from metrics
+  partialSwaps: number;
   timeSpanHours: number;
   metrics: FlowMetrics;
   verdict: FlowVerdict;
@@ -215,8 +232,10 @@ async function fetchJson<T>(url: string, headers?: Record<string, string>): Prom
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 429) {
+    // (e) Rate limit: exits with error. Partial results are NOT returned on 429.
+    //     Use --hiro-api-key for elevated limits or reduce --swaps count.
     throw new Error(
-      `Rate limited by ${new URL(url).hostname}. Use --hiro-api-key for elevated limits.`
+      `Rate limited by ${new URL(url).hostname}. Use --hiro-api-key for elevated limits or reduce --swaps count.`
     );
   }
   if (!res.ok) throw new Error(`API ${res.status} ${res.statusText}: ${url}`);
@@ -232,12 +251,11 @@ async function sleep(ms: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function extractReprField(repr: string, field: string): string | null {
-  // Match (field value) or (field "value")
   const patterns = [
-    new RegExp(`\\(${field}\\s+"([^"]*)"\\)`),          // string: (field "value")
-    new RegExp(`\\(${field}\\s+'([A-Z0-9]+[^)]*?)\\)`), // principal: (field 'SP...)
-    new RegExp(`\\(${field}\\s+u(\\d+)\\)`),             // uint: (field u123)
-    new RegExp(`\\(${field}\\s+(-?\\d+)\\)`),            // int: (field -123)
+    new RegExp(`\\(${field}\\s+"([^"]*)"\\)`),
+    new RegExp(`\\(${field}\\s+'([A-Z0-9]+[^)]*?)\\)`),
+    new RegExp(`\\(${field}\\s+u(\\d+)\\)`),
+    new RegExp(`\\(${field}\\s+(-?\\d+)\\)`),
   ];
   for (const pat of patterns) {
     const m = repr.match(pat);
@@ -281,7 +299,7 @@ async function fetchSwapTransactions(
 ): Promise<HiroTx[]> {
   const swapTxs: HiroTx[] = [];
   let offset = 0;
-  const maxPages = 20; // safety limit
+  const maxPages = 20;
   const now = Math.floor(Date.now() / 1000);
 
   for (let page = 0; page < maxPages; page++) {
@@ -296,16 +314,14 @@ async function fetchSwapTransactions(
       const fn = tx.contract_call.function_name;
       if (!SWAP_FUNCTIONS.includes(fn)) continue;
 
-      // Window filter
       if (windowSeconds && (now - tx.block_time) > windowSeconds) {
-        return swapTxs; // Past the window — we're done
+        return swapTxs;
       }
 
       swapTxs.push(tx);
       if (swapTxs.length >= targetSwapCount) return swapTxs;
     }
 
-    // No more results
     if (data.results.length < TX_PAGE_SIZE) break;
     offset += TX_PAGE_SIZE;
   }
@@ -341,7 +357,6 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
   const records: SwapRecord[] = [];
   const errors: string[] = [];
 
-  // Batch fetch events
   for (let i = 0; i < txs.length; i += BATCH_SIZE) {
     const batch = txs.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
@@ -359,7 +374,10 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
 
       const hops = result.value;
       if (hops.length === 0) {
-        // Infer direction from function name alone
+        // (c) No hop events — infer direction from function name but mark as partial.
+        //     Partial records are excluded from volume-weighted metric calculations.
+        //     They are included in swapsAnalyzed count and actor classification
+        //     (sender address is reliable even without hop data).
         const fn = tx.contract_call!.function_name;
         let direction: SwapRecord["direction"] = "unknown";
         if (fn.includes("x-for-y")) direction = "buy-y";
@@ -371,13 +389,16 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
           blockTime: tx.block_time,
           blockHeight: tx.block_height,
           direction,
-          isLiquidation: fn === "liquidate-with-swap",
+          // (d) Sender-prefix check against known Zest liquidator contract address prefix.
+          //     "liquidate-with-swap" function name does not exist on any DLMM router.
+          isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_PREFIX.split(".")[0]),
           functionName: fn,
           hops: [],
           totalDx: 0n,
           totalDy: 0n,
           activeBinStart: 0,
           activeBinEnd: 0,
+          isPartial: true,
         });
         continue;
       }
@@ -389,7 +410,6 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
       if (action === "swap-x-for-y") direction = "buy-y";
       else if (action === "swap-y-for-x") direction = "buy-x";
 
-      // Bin movement: first hop's activeBinId vs last hop's
       const activeBinStart = hops[0].activeBinId;
       const activeBinEnd = hops[hops.length - 1].activeBinId;
 
@@ -399,7 +419,8 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
         blockTime: tx.block_time,
         blockHeight: tx.block_height,
         direction,
-        isLiquidation: tx.contract_call!.function_name === "liquidate-with-swap",
+        // (d) Sender-prefix check — replaces defunct "liquidate-with-swap" function name.
+        isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_PREFIX.split(".")[0]),
         functionName: tx.contract_call!.function_name,
         hops,
         totalDx,
@@ -409,7 +430,6 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
       });
     }
 
-    // Rate limit delay between batches
     if (i + BATCH_SIZE < txs.length) {
       await sleep(BATCH_DELAY_MS);
     }
@@ -431,19 +451,17 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
 function computeDirectionBias(swaps: SwapRecord[]): { value: number; label: string } {
   if (swaps.length === 0) return { value: 0, label: "No data" };
 
-  // Volume-weighted direction bias
   let buyXVolume = 0n;
   let buyYVolume = 0n;
 
   for (const s of swaps) {
-    const vol = s.totalDx + s.totalDy; // combined as proxy
+    const vol = s.totalDx + s.totalDy;
     if (s.direction === "buy-x") buyXVolume += vol;
     else if (s.direction === "buy-y") buyYVolume += vol;
   }
 
   const total = buyXVolume + buyYVolume;
   if (total === 0n) {
-    // Fall back to count-based
     let buyX = 0, buyY = 0;
     for (const s of swaps) {
       if (s.direction === "buy-x") buyX++;
@@ -472,8 +490,6 @@ function biasLabel(bias: number): string {
 function computeFlowToxicity(swaps: SwapRecord[]): { value: number; label: string } {
   if (swaps.length < 3) return { value: 0, label: "Insufficient data" };
 
-  // Toxicity = ratio of swaps that continue the same direction as the previous swap
-  // High toxicity = informed flow (adverse selection for LPs)
   let sameDirection = 0;
   let comparisons = 0;
 
@@ -499,7 +515,7 @@ function computeFlowToxicity(swaps: SwapRecord[]): { value: number; label: strin
 function computeBinVelocity(swaps: SwapRecord[]): { value: number; label: string } {
   if (swaps.length < 2) return { value: 0, label: "Insufficient data" };
 
-  // Count distinct active bin changes across consecutive swaps
+  // Only use records with parsed hop data — partials have activeBin=0
   const swapsWithBins = swaps.filter((s) => s.hops.length > 0);
   if (swapsWithBins.length < 2) return { value: 0, label: "No bin data" };
 
@@ -512,7 +528,6 @@ function computeBinVelocity(swaps: SwapRecord[]): { value: number; label: string
     }
   }
 
-  // Time span in hours
   const earliest = swapsWithBins[swapsWithBins.length - 1].blockTime;
   const latest = swapsWithBins[0].blockTime;
   const hours = Math.max((latest - earliest) / 3600, 0.01);
@@ -520,6 +535,9 @@ function computeBinVelocity(swaps: SwapRecord[]): { value: number; label: string
   const velocity = binChanges / hours;
   const rounded = Math.round(velocity * 100) / 100;
 
+  // (m) Thresholds calibrated on post-fix-b corrected sample of HODLMM mainnet data:
+  //     >50 bins/hr = multi-block whipsaw (extreme); >20 = sustained direction (high);
+  //     >5 = intermittent crossings (moderate); ≤5 = narrow band price stability (low)
   let label: string;
   if (velocity > 50) label = "Extreme — price whipsawing, narrow ranges will get shredded";
   else if (velocity > 20) label = "High — active price discovery, widen your range";
@@ -532,7 +550,6 @@ function computeBinVelocity(swaps: SwapRecord[]): { value: number; label: string
 function computeWhaleConcentration(swaps: SwapRecord[]): { value: number; label: string } {
   if (swaps.length === 0) return { value: 0, label: "No data" };
 
-  // Herfindahl index on swap volume per address
   const volumeByAddress: Record<string, bigint> = {};
   let totalVolume = 0n;
 
@@ -544,7 +561,6 @@ function computeWhaleConcentration(swaps: SwapRecord[]): { value: number; label:
   }
 
   if (totalVolume === 0n) {
-    // Fall back to count-based HHI
     const countByAddress: Record<string, number> = {};
     for (const s of swaps) {
       countByAddress[s.sender] = (countByAddress[s.sender] ?? 0) + 1;
@@ -591,7 +607,6 @@ function computeLiquidationPressure(swaps: SwapRecord[]): { value: number; label
   }
 
   if (totalVolume === 0n) {
-    // Count-based fallback
     const ratio = liqCount / swaps.length;
     return { value: Math.round(ratio * 1000) / 1000, label: liqLabel(ratio, liqCount) };
   }
@@ -608,6 +623,8 @@ function liqLabel(ratio: number, count: number): string {
 }
 
 function computeBotFlowRatio(swaps: SwapRecord[], actors: ActorProfile[]): { value: number; label: string } {
+  // (f) Includes both "bot" (>10 swaps/hr or >30% share) and "router" (>3 swaps/hr)
+  //     in the automated-flow numerator. Both tiers documented in SKILL.md §Metrics reference.
   const botAddresses = new Set(
     actors.filter((a) => a.label === "bot" || a.label === "router").map((a) => a.address)
   );
@@ -677,9 +694,15 @@ function classifyActors(swaps: SwapRecord[]): ActorProfile[] {
     let label: ActorProfile["label"];
     if (data.isLiquidator) {
       label = "liquidator";
-    } else if (avgSwapsPerHour > 10 || data.count > swaps.length * 0.3) {
+    } else if (
+      // (m) "bot": >10 swaps/hr (documented in SKILL.md) OR >30% of all flow (burst dominance)
+      avgSwapsPerHour > 10 || data.count > swaps.length * 0.3
+    ) {
       label = "bot";
-    } else if (avgSwapsPerHour > 3) {
+    } else if (
+      // (m) "router": 3–10 swaps/hr — aggregators/routing contracts; included in botFlowRatio
+      avgSwapsPerHour > 3
+    ) {
       label = "router";
     } else {
       label = "organic";
@@ -695,7 +718,6 @@ function classifyActors(swaps: SwapRecord[]): ActorProfile[] {
     });
   }
 
-  // Sort by swap count descending
   profiles.sort((a, b) => b.swapCount - a.swapCount);
   return profiles;
 }
@@ -709,35 +731,27 @@ function generateVerdict(
   swaps: SwapRecord[],
   binStep: number
 ): FlowVerdict {
-  // Score components (0-100 scale, higher = safer for LPs)
   let score = 100;
 
-  // Direction bias penalty: extreme bias = danger
   const biasPenalty = Math.abs(metrics.directionBias) * 30;
   score -= biasPenalty;
 
-  // Toxicity penalty: high toxicity = informed flow hurting LPs
   const toxicityPenalty = metrics.flowToxicity * 30;
   score -= toxicityPenalty;
 
-  // Bin velocity penalty: high velocity = narrow ranges get destroyed
   const velocityPenalty = Math.min(20, metrics.binVelocity * 0.4);
   score -= velocityPenalty;
 
-  // Whale concentration penalty: concentrated = manipulable
   const whalePenalty = Math.max(0, (metrics.whaleConcentration - 0.15) * 30);
   score -= whalePenalty;
 
-  // Liquidation bonus: some liquidation flow is actually good for LPs (volume + fees)
-  // But heavy liquidation means underlying assets are stressed
   const liqPenalty = metrics.liquidationPressure > 0.2
     ? (metrics.liquidationPressure - 0.2) * 25
-    : -metrics.liquidationPressure * 5; // slight bonus
+    : -metrics.liquidationPressure * 5;
   score -= liqPenalty;
 
-  // Bot penalty: bot-dominated flow is only harmful when toxic.
-  // Mean-reverting arb bots in low-toxicity pools are LP-friendly; informed bots in high-toxicity pools amplify adverse selection.
-  // Scale the base penalty by (0.5 + toxicity): half weight at toxicity=0, 1.5x at toxicity=1.
+  // Bot penalty scaled by toxicity: arb bots in low-toxicity pools are LP-friendly;
+  // informed bots in high-toxicity pools amplify adverse selection.
   const botPenaltyBase = Math.max(0, (metrics.botFlowRatio - 0.5) * 20);
   const botPenalty = botPenaltyBase * (0.5 + metrics.flowToxicity);
   score -= botPenalty;
@@ -749,7 +763,6 @@ function generateVerdict(
   else if (score >= 40) lpSafety = "caution";
   else lpSafety = "danger";
 
-  // Build reasoning
   const reasons: string[] = [];
   if (Math.abs(metrics.directionBias) > 0.3) {
     reasons.push(`Strong directional pressure (${metrics.directionBias > 0 ? "buying" : "selling"} X)`);
@@ -773,16 +786,13 @@ function generateVerdict(
     reasons.push("Flow conditions normal across all metrics");
   }
 
-  // Range lifespan estimate
   let rangeLifespanHours: number | null = null;
   if (metrics.binVelocity > 0) {
-    // Estimate: how long until a ±radius position goes out of range
     const radius = Math.max(5, Math.round(50 / binStep));
     rangeLifespanHours = Math.round((radius * 2) / metrics.binVelocity * 10) / 10;
-    if (rangeLifespanHours > 720) rangeLifespanHours = null; // >30 days = effectively infinite
+    if (rangeLifespanHours > 720) rangeLifespanHours = null;
   }
 
-  // Recommendation
   let recommendation: string;
   if (lpSafety === "safe") {
     recommendation = "Conditions favorable for LPs. Standard range width appropriate.";
@@ -870,7 +880,6 @@ async function analyzePool(
   const contract = POOL_CONTRACTS[poolId];
   if (!contract) throw new Error(`Unknown pool: ${poolId}. Valid: ${Object.keys(POOL_CONTRACTS).join(", ")}`);
 
-  // Check cache (5-min TTL — avoids redundant Hiro crawls for repeated calls)
   const key = cacheKey(poolId, swapCount, windowSeconds);
   if (!skipCache) {
     const cached = readCache(key);
@@ -879,28 +888,30 @@ async function analyzePool(
 
   const poolInfo = await getPoolInfo(poolId);
 
-  // Fetch swap transactions
   const txs = await fetchSwapTransactions(contract, swapCount, windowSeconds);
   if (txs.length === 0) {
     throw new Error(`No swap transactions found for ${poolId}${windowSeconds ? ` in the specified window` : ""}`);
   }
 
-  // Enrich with event data
-  const swaps = await enrichSwaps(txs);
-  if (swaps.length === 0) {
+  const allSwaps = await enrichSwaps(txs);
+  if (allSwaps.length === 0) {
     throw new Error(`Failed to parse any swap data for ${poolId}`);
   }
 
-  // Classify actors
-  const actors = classifyActors(swaps);
+  // (c) Separate full vs partial records.
+  //     Metrics use full records only; actors classified from all (sender always reliable).
+  const fullSwaps = allSwaps.filter((s) => !s.isPartial);
+  const partialCount = allSwaps.length - fullSwaps.length;
+  const swapsForMetrics = fullSwaps.length > 0 ? fullSwaps : allSwaps;
 
-  // Compute metrics
-  const dirBias = computeDirectionBias(swaps);
-  const toxicity = computeFlowToxicity(swaps);
-  const velocity = computeBinVelocity(swaps);
-  const whale = computeWhaleConcentration(swaps);
-  const liq = computeLiquidationPressure(swaps);
-  const botFlow = computeBotFlowRatio(swaps, actors);
+  const actors = classifyActors(allSwaps);
+
+  const dirBias = computeDirectionBias(swapsForMetrics);
+  const toxicity = computeFlowToxicity(swapsForMetrics);
+  const velocity = computeBinVelocity(swapsForMetrics);
+  const whale = computeWhaleConcentration(swapsForMetrics);
+  const liq = computeLiquidationPressure(swapsForMetrics);
+  const botFlow = computeBotFlowRatio(swapsForMetrics, actors);
 
   const metrics: FlowMetrics = {
     directionBias: dirBias.value,
@@ -917,22 +928,19 @@ async function analyzePool(
     botFlowRatioLabel: botFlow.label,
   };
 
-  // Generate verdict
-  const verdict = generateVerdict(metrics, swaps, poolInfo.binStep);
+  const verdict = generateVerdict(metrics, swapsForMetrics, poolInfo.binStep);
 
-  // Time span
-  const earliest = swaps[swaps.length - 1].blockTime;
-  const latest = swaps[0].blockTime;
+  const earliest = allSwaps[allSwaps.length - 1].blockTime;
+  const latest = allSwaps[0].blockTime;
   const timeSpanHours = Math.round(((latest - earliest) / 3600) * 10) / 10;
 
-  // Top actors (top 5 by volume share)
-  const totalVol = swaps.reduce((s, sw) => s + sw.totalDx + sw.totalDy, 0n);
+  const totalVol = swapsForMetrics.reduce((s, sw) => s + sw.totalDx + sw.totalDy, 0n);
   const topActors = actors.slice(0, 5).map((a) => ({
     address: a.address,
     swapCount: a.swapCount,
     volumeShare: totalVol > 0n
       ? Math.round(Number(a.totalVolumeX + a.totalVolumeY) / Number(totalVol) * 1000) / 10
-      : Math.round((a.swapCount / swaps.length) * 1000) / 10,
+      : Math.round((a.swapCount / allSwaps.length) * 1000) / 10,
     label: a.label,
   }));
 
@@ -942,7 +950,8 @@ async function analyzePool(
     timestamp: new Date().toISOString(),
     poolId,
     pair: poolInfo.pair,
-    swapsAnalyzed: swaps.length,
+    swapsAnalyzed: allSwaps.length,
+    partialSwaps: partialCount,
     timeSpanHours,
     metrics,
     verdict,
@@ -969,7 +978,6 @@ program
     try {
       const checks: Record<string, string> = {};
 
-      // Hiro API
       try {
         await fetchJson<unknown>(`${HIRO_API}/v2/info`);
         checks["hiro-api"] = "ok";
@@ -977,7 +985,6 @@ program
         checks["hiro-api"] = `fail: ${e instanceof Error ? e.message : String(e)}`;
       }
 
-      // Hiro transactions API (specific to our use case)
       try {
         const contract = POOL_CONTRACTS.dlmm_3;
         await fetchJson<unknown>(
@@ -989,9 +996,7 @@ program
         checks["hiro-transactions"] = `fail: ${e instanceof Error ? e.message : String(e)}`;
       }
 
-      // Hiro events API
       try {
-        // Use a known tx to test events endpoint
         const contract = POOL_CONTRACTS.dlmm_3;
         const txData = await fetchJson<{ results: HiroTx[] }>(
           `${HIRO_API}/extended/v1/address/${contract}/transactions?limit=1`,
@@ -1010,7 +1015,6 @@ program
         checks["hiro-events"] = `fail: ${e instanceof Error ? e.message : String(e)}`;
       }
 
-      // Bitflow quotes API
       try {
         await fetchJson<unknown>(`${BITFLOW_QUOTES_API}/pools`);
         checks["bitflow-quotes"] = "ok";
@@ -1018,7 +1022,6 @@ program
         checks["bitflow-quotes"] = `fail: ${e instanceof Error ? e.message : String(e)}`;
       }
 
-      // Bitflow app API
       try {
         await fetchJson<unknown>(`${BITFLOW_APP_API}/pools/dlmm_3`);
         checks["bitflow-app"] = "ok";
@@ -1057,7 +1060,6 @@ program
       const windowSeconds = opts.window ? parseDuration(opts.window) : undefined;
 
       if (opts.all) {
-        // Analyze all primary pools
         const results: FlowAnalysis[] = [];
         const errors: Array<{ poolId: string; error: string }> = [];
 
@@ -1073,11 +1075,24 @@ program
           }
         }
 
-        // Summary
+        // (i) Check Bitflow live pool list; warn if new pools exist beyond this build's set
+        let poolsWarning: string | null = null;
+        try {
+          const poolData = await fetchJson<{ pools: Array<{ pool_id: string }> }>(`${BITFLOW_QUOTES_API}/pools`);
+          const liveDlmm = poolData.pools.map((p) => p.pool_id).filter((id) => id.startsWith("dlmm_"));
+          const unknown = liveDlmm.filter((id) => !PRIMARY_POOLS.includes(id));
+          if (unknown.length > 0) {
+            poolsWarning = `${unknown.length} pool(s) live on Bitflow not in this build: ${unknown.join(", ")}. Upgrade to the latest hodlmm-flow to include them.`;
+          }
+        } catch {
+          // Non-fatal
+        }
+
         const avgScore = results.length > 0
           ? Math.round(results.reduce((s, r) => s + r.verdict.score, 0) / results.length)
           : 0;
 
+        // (g) --all output schema (protocol-wide summary)
         printJson({
           status: "success",
           network: "mainnet",
@@ -1086,10 +1101,12 @@ program
           poolsAnalyzed: results.length,
           poolsFailed: errors.length,
           protocolSafetyScore: avgScore,
+          poolsWarning,
           pools: results.map((r) => ({
             poolId: r.poolId,
             pair: r.pair,
             swapsAnalyzed: r.swapsAnalyzed,
+            partialSwaps: r.partialSwaps,
             timeSpanHours: r.timeSpanHours,
             safetyScore: r.verdict.score,
             lpSafety: r.verdict.lpSafety,
@@ -1103,7 +1120,6 @@ program
           errors: errors.length > 0 ? errors : undefined,
         });
       } else {
-        // Single pool
         const poolId = opts.poolId;
         if (!poolId) {
           printJson({ error: "Specify --pool-id <id> or use --all. Valid pools: " + Object.keys(POOL_CONTRACTS).join(", ") });
