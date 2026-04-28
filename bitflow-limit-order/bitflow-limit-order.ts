@@ -972,7 +972,7 @@ async function runCycle(ctx: CycleCtx): Promise<CycleStats> {
       } catch (e: any) {
         // (i) Slippage violations and post-condition failures are transient — price moved
         //     between check and execution. Treat as a skip so the order retries next cycle.
-        const isTransient = /slippage|post.condition|STXPostCondition|FungiblePostCondition/i.test(e.message);
+        const isTransient = /slippage|post[- _.]condition|STXPostCondition|FungiblePostCondition/i.test(e.message);
         if (isTransient) {
           recordSkip(book, order, `Transient swap failure (retryable): ${e.message}`);
           stats.skipped++; if (ctx.useTicks) ctx.tickCounts.delete(order.orderId);
