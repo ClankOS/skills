@@ -34,6 +34,7 @@ const DEFAULT_SWAP_COUNT = 100;
 const TX_PAGE_SIZE = 50;
 // DLMM_CORE removed — was defined but never referenced in any code path (n)
 const LIQUIDATOR_PREFIX = "SP16B5ZKHJAK4CSHQ1WYSZE57NWMKW0KDX6YZKH4J.liquidator";
+const LIQUIDATOR_ADDRESS = LIQUIDATOR_PREFIX.split(".")[0]; // precomputed — used in hot enrichSwaps loop
 const CACHE_DIR = join(process.env.HOME ?? "/tmp", ".hodlmm-flow-cache");
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — see SKILL.md §Cache
 
@@ -391,7 +392,7 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
           direction,
           // (d) Sender-prefix check against known Zest liquidator contract address prefix.
           //     "liquidate-with-swap" function name does not exist on any DLMM router.
-          isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_PREFIX.split(".")[0]),
+          isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_ADDRESS),
           functionName: fn,
           hops: [],
           totalDx: 0n,
@@ -420,7 +421,7 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
         blockHeight: tx.block_height,
         direction,
         // (d) Sender-prefix check — replaces defunct "liquidate-with-swap" function name.
-        isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_PREFIX.split(".")[0]),
+        isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_ADDRESS),
         functionName: tx.contract_call!.function_name,
         hops,
         totalDx,
@@ -1078,8 +1079,9 @@ program
         // (i) Check Bitflow live pool list; warn if new pools exist beyond this build's set
         let poolsWarning: string | null = null;
         try {
-          const poolData = await fetchJson<{ pools: Array<{ pool_id: string }> }>(`${BITFLOW_QUOTES_API}/pools`);
-          const liveDlmm = poolData.pools.map((p) => p.pool_id).filter((id) => id.startsWith("dlmm_"));
+          const poolData = await fetchJson<unknown>(`${BITFLOW_QUOTES_API}/pools`);
+          const rawPools = Array.isArray(poolData) ? poolData : (poolData as any).pools ?? [];
+          const liveDlmm = (rawPools as Array<{ pool_id: string }>).map((p) => p.pool_id).filter((id) => id.startsWith("dlmm_"));
           const unknown = liveDlmm.filter((id) => !PRIMARY_POOLS.includes(id));
           if (unknown.length > 0) {
             poolsWarning = `${unknown.length} pool(s) live on Bitflow not in this build: ${unknown.join(", ")}. Upgrade to the latest hodlmm-flow to include them.`;
