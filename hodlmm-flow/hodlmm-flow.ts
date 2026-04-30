@@ -31,6 +31,7 @@ const DEFAULT_SWAP_COUNT = 100;
 const TX_PAGE_SIZE = 50;
 const DLMM_CORE = "SP1PFR4V08H1RAZXREBGFFQ59WB739XM8VVGTFSEA.dlmm-core-v-1-1";
 const LIQUIDATOR_PREFIX = "SP16B5ZKHJAK4CSHQ1WYSZE57NWMKW0KDX6YZKH4J.liquidator";
+const LIQUIDATOR_ADDRESS = LIQUIDATOR_PREFIX.split(".")[0];
 const CACHE_DIR = join(process.env.HOME ?? "/tmp", ".hodlmm-flow-cache");
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -395,8 +396,7 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
           blockTime: tx.block_time,
           blockHeight: tx.block_height,
           direction,
-          // No liquidation function exists on dlmm-swap-router-v-1-1; metric reserved for future contracts
-          isLiquidation: false,
+          isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_ADDRESS),
           functionName: fn,
           hops: [],
           totalDx: 0n,
@@ -424,8 +424,7 @@ async function enrichSwaps(txs: HiroTx[]): Promise<SwapRecord[]> {
         blockTime: tx.block_time,
         blockHeight: tx.block_height,
         direction,
-        // No liquidation function exists on dlmm-swap-router-v-1-1; metric reserved for future contracts
-        isLiquidation: false,
+        isLiquidation: tx.sender_address.startsWith(LIQUIDATOR_ADDRESS),
         functionName: tx.contract_call!.function_name,
         hops,
         totalDx,
