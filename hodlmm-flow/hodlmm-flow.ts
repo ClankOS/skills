@@ -149,7 +149,8 @@ interface FlowAnalysis {
    * Note: the denominator is all contract_call txs on this pool, not just swap-eligible txs.
    */
   coverage_rate: number | null;
-  /** True when coverage_rate < 1.0, indicating some transactions were not recognized as swaps */
+  /** True when coverage_rate < 1.0. Note: denominator includes all contract_call txs on the pool
+   *  (add-liquidity, claim-fees, rebalance, etc.), so this can fire even when all swaps are captured. */
   coverage_warning: boolean;
   partial?: true;
   partial_reason?: string;
@@ -175,6 +176,11 @@ function handleError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   printJson({ error: message });
   process.exit(1);
+}
+
+function isRateLimitError(e: unknown): boolean {
+  const code = (e as { statusCode?: number }).statusCode;
+  return code === 429 || (e instanceof Error && e.message.includes("Rate limited"));
 }
 
 // ---------------------------------------------------------------------------
@@ -911,9 +917,7 @@ export async function analyzePool(
   try {
     fetchResult = await fetchSwapTransactions(contract, swapCount, windowSeconds);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if ((e as { statusCode?: number }).statusCode === 429 || msg.includes("Rate limited")) {
-      // statusCode === 429 is set by fetchJson; string fallback handles wrapped errors
+    if (isRateLimitError(e)) {
       fetchResult = { txs: [], totalFetched: 0 };
       isPartial = true;
       partialReason = "hiro_rate_limited";
@@ -938,7 +942,7 @@ export async function analyzePool(
     swaps = await enrichSwaps(txs);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (((e as { statusCode?: number }).statusCode === 429 || msg.includes("Rate limited")) && txs.length > 0) {
+    if (isRateLimitError(e) && txs.length > 0) {
       // enrichSwaps uses Promise.allSettled so individual failures are handled;
       // if the outer call throws it means the rate limit hit during fetchTxEvents
       // outside of the batch — treat as partial
