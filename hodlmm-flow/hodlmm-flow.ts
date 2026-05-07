@@ -941,7 +941,6 @@ export async function analyzePool(
   try {
     swaps = await enrichSwaps(txs);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
     if (isRateLimitError(e) && txs.length > 0) {
       // enrichSwaps uses Promise.allSettled so individual failures are handled;
       // if the outer call throws it means the rate limit hit during fetchTxEvents
